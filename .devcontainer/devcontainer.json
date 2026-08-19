@@ -1,0 +1,12 @@
+{
+  "name": "Arista Demo Dashboard",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "forwardPorts": [3000],
+  "postCreateCommand": "npm install",
+  "portsAttributes": {
+    "3000": {
+      "label": "Demo Dashboard",
+      "onAutoForward": "openBrowser"
+    }
+  }
+}

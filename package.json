@@ -1,0 +1,19 @@
+{
+  "name": "demo-dashboard",
+  "version": "1.0.0",
+  "description": "Arista AVD automation demo dashboard — consolidates GitHub Actions, CloudVision, and SSH terminals into a single view",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": ["arista", "avd", "automation", "dashboard", "demo"],
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "express": "^4.21.0",
+    "js-yaml": "^4.1.0",
+    "ssh2": "^1.16.0",
+    "ws": "^8.18.0"
+  }
+}
