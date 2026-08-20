@@ -294,8 +294,10 @@ wss.on('connection', (ws) => {
           });
 
           stream.on('close', () => {
-            ws.send(JSON.stringify({ type: 'status', status: 'disconnected' }));
-            sshClient.end();
+            if (ws.readyState === ws.OPEN) {
+              ws.send(JSON.stringify({ type: 'status', status: 'disconnected' }));
+            }
+            if (sshClient) sshClient.end();
           });
 
           stream.stderr.on('data', (data) => {

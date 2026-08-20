@@ -219,9 +219,14 @@ html, body {
 .env-panes {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr 2fr;
+  grid-template-rows: 1fr 1fr;
   gap: 10px;
   min-height: 0;
+}
+
+.env-panes .pane:first-child {
+  grid-row: 1 / -1;
 }
 
 /* Individual Pane */
