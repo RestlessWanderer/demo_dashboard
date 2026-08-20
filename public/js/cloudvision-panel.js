@@ -7,6 +7,7 @@ class CloudVisionPanel {
     this.token = '';
     this.onStatusChange = null;
     this.onConnect = null;
+    this.onDisconnect = null;
     this.refreshInterval = null;
     this.showForm();
   }
@@ -44,7 +45,7 @@ class CloudVisionPanel {
     this.connected = true;
     this.showLoading();
     this.fetchData();
-    this.refreshInterval = setInterval(() => this.fetchData(), 30000);
+    this.refreshInterval = setInterval(() => this.fetchData(), 10000);
 
     if (this.onConnect) this.onConnect();
   }
@@ -56,6 +57,7 @@ class CloudVisionPanel {
       this.refreshInterval = null;
     }
     if (this.onStatusChange) this.onStatusChange('idle');
+    if (this.onDisconnect) this.onDisconnect();
     this.showForm();
   }
 

@@ -75,6 +75,51 @@ app.post('/api/github/runs', async (req, res) => {
   }
 });
 
+app.post('/api/github/jobs', async (req, res) => {
+  const { url, token, runId } = req.body || {};
+  if (!token || !runId) {
+    return res.json({ jobs: [
+      { id: 1, name: 'Build & Validate', status: 'completed', conclusion: 'success', steps: [
+        { number: 1, name: 'Checkout', status: 'completed', conclusion: 'success' },
+        { number: 2, name: 'Generate AVD Config', status: 'completed', conclusion: 'success' },
+        { number: 3, name: 'Validate Config', status: 'completed', conclusion: 'success' },
+      ]},
+      { id: 2, name: 'Deploy to Network', status: 'in_progress', conclusion: null, steps: [
+        { number: 1, name: 'Checkout', status: 'completed', conclusion: 'success' },
+        { number: 2, name: 'Push to CloudVision', status: 'in_progress', conclusion: null },
+        { number: 3, name: 'Execute Change Control', status: 'queued', conclusion: null },
+      ]},
+    ], mock: true });
+  }
+
+  const repo = parseGitHubUrl(url);
+  if (!repo) return res.status(400).json({ error: 'Cannot parse GitHub URL' });
+
+  try {
+    const apiRes = await fetch(
+      `https://api.github.com/repos/${repo.owner}/${repo.repo}/actions/runs/${runId}/jobs`,
+      { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } }
+    );
+    if (!apiRes.ok) throw new Error(`GitHub API ${apiRes.status}`);
+    const data = await apiRes.json();
+    const jobs = (data.jobs || []).map(j => ({
+      id: j.id,
+      name: j.name,
+      status: j.status,
+      conclusion: j.conclusion,
+      steps: (j.steps || []).map(s => ({
+        number: s.number,
+        name: s.name,
+        status: s.status,
+        conclusion: s.conclusion,
+      })),
+    }));
+    res.json({ jobs, mock: false });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 function generateMockChangeControls() {
   const now = Date.now();
   return [
@@ -86,13 +131,21 @@ function generateMockChangeControls() {
   ];
 }
 
+function normalizeUrl(url) {
+  url = url.trim().replace(/\/$/, '');
+  if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://' + url;
+  }
+  return url;
+}
+
 app.post('/api/cloudvision/changecontrols', async (req, res) => {
   const { url, token } = req.body || {};
   if (!token) return res.json({ changeControls: generateMockChangeControls(), mock: true });
   if (!url) return res.status(400).json({ error: 'URL required' });
 
   try {
-    const baseUrl = url.replace(/\/$/, '');
+    const baseUrl = normalizeUrl(url);
     const apiRes = await fetch(
       `${baseUrl}/api/resources/changecontrol/v1/ChangeControl/all`,
       { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } }
@@ -117,7 +170,8 @@ app.post('/api/cloudvision/changecontrols', async (req, res) => {
         createdAt: obj.result?.time || val.createdAt || '',
       };
     });
-    res.json({ changeControls: items, mock: false });
+    items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    res.json({ changeControls: items.slice(0, 15), mock: false });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
@@ -140,23 +194,53 @@ app.post('/api/cloudvision/devices', async (req, res) => {
   if (!url) return res.status(400).json({ error: 'URL required' });
 
   try {
-    const baseUrl = url.replace(/\/$/, '');
-    const apiRes = await fetch(
-      `${baseUrl}/api/resources/inventory/v1/Device/all`,
-      { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } }
-    );
-    if (!apiRes.ok) throw new Error(`CloudVision API ${apiRes.status}`);
-    const text = await apiRes.text();
-    const devices = text.trim().split('\n').filter(Boolean).map(line => {
-      const obj = JSON.parse(line);
-      const val = obj.result?.value || obj;
-      const key = val.key || {};
-      return {
-        hostname: val.hostname || key.deviceId || '',
-        ipAddress: val.ipAddress || val.managementAddress || '',
-        modelName: val.modelName || val.hardwareRevision || '',
-      };
-    }).filter(d => d.hostname && d.ipAddress);
+    const baseUrl = normalizeUrl(url);
+
+    // Try the REST API first (has management IPs)
+    let devices = [];
+    let restDebug = '';
+    try {
+      const restRes = await fetch(
+        `${baseUrl}/cvpservice/inventory/devices`,
+        { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } }
+      );
+      restDebug = `REST API status: ${restRes.status}`;
+      if (restRes.ok) {
+        const data = await restRes.json();
+        restDebug += `, returned ${Array.isArray(data) ? data.length : 'non-array'} items`;
+        devices = (Array.isArray(data) ? data : []).map(d => ({
+          hostname: d.hostname || d.fqdn || '',
+          ipAddress: d.ipAddress || '',
+          modelName: d.modelName || '',
+        })).filter(d => d.hostname && d.ipAddress);
+        restDebug += `, parsed ${devices.length} with IPs`;
+      }
+    } catch (e) {
+      restDebug = `REST API error: ${e.message}`;
+    }
+    console.log(`[CV Devices] ${restDebug}`);
+
+    // Fall back to Resource API if REST API didn't work
+    if (devices.length === 0) {
+      const apiRes = await fetch(
+        `${baseUrl}/api/resources/inventory/v1/Device/all`,
+        { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } }
+      );
+      if (!apiRes.ok) throw new Error(`CloudVision API ${apiRes.status}`);
+      const text = await apiRes.text();
+      const lines = text.trim().split('\n').filter(Boolean);
+      devices = lines.map(line => {
+        const obj = JSON.parse(line);
+        const val = obj.result?.value || obj;
+        const key = obj.result?.key || val.key || {};
+        return {
+          hostname: val.hostname || key.deviceId || '',
+          ipAddress: val.ipAddress || val.managementAddress || val.fqdn || '',
+          modelName: val.modelName || '',
+        };
+      }).filter(d => d.hostname && d.ipAddress);
+    }
+
     devices.sort((a, b) => a.hostname.localeCompare(b.hostname));
     res.json({ devices, mock: false });
   } catch (err) {
@@ -226,11 +310,16 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'error', message: err.message }));
       });
 
+      sshClient.on('keyboard-interactive', (_name, _instructions, _lang, prompts, finish) => {
+        finish(prompts.map(() => msg.password));
+      });
+
       sshClient.connect({
         host: msg.host,
         port: msg.port || 22,
         username: msg.username,
         password: msg.password,
+        tryKeyboard: true,
         readyTimeout: 10000,
         algorithms: {
           kex: [

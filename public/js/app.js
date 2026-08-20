@@ -18,14 +18,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyTheme(localStorage.getItem('theme') || 'dark');
 
   toggle.addEventListener('click', () => {
-    const next = document.body.classList.contains('light-theme') ? 'dark' : 'light';
-    applyTheme(next);
+    applyTheme(document.body.classList.contains('light-theme') ? 'dark' : 'light');
   });
 
+  // Load demo config from URL param
+  let demoConfig = null;
+  const params = new URLSearchParams(window.location.search);
+  const demoId = params.get('id');
+  if (demoId) {
+    try {
+      const demos = JSON.parse(localStorage.getItem('demos')) || [];
+      demoConfig = demos.find(d => d.id === demoId) || null;
+    } catch {}
+  }
+
+  // SSH credentials
   const sshUser = document.getElementById('ssh-username');
   const sshPass = document.getElementById('ssh-password');
-  sshUser.value = localStorage.getItem('ssh_username') || '';
-  sshPass.value = localStorage.getItem('ssh_password') || '';
+  if (demoConfig) {
+    sshUser.value = demoConfig.ssh_username || '';
+    sshPass.value = demoConfig.ssh_password || '';
+  } else {
+    sshUser.value = localStorage.getItem('ssh_username') || '';
+    sshPass.value = localStorage.getItem('ssh_password') || '';
+  }
   sshUser.addEventListener('input', () => localStorage.setItem('ssh_username', sshUser.value));
   sshPass.addEventListener('input', () => localStorage.setItem('ssh_password', sshPass.value));
 
@@ -41,12 +57,98 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  // Pre-fill localStorage from demo config BEFORE creating panels
+  if (demoConfig) {
+    localStorage.setItem('github_url', demoConfig.github_url || '');
+    localStorage.setItem('github_token', demoConfig.github_token || '');
+    for (const envKey of Object.keys(config.environments)) {
+      localStorage.setItem(`cv_url_${envKey}`, demoConfig[`${envKey}_cv_url`] || '');
+      localStorage.setItem(`cv_token_${envKey}`, demoConfig[`${envKey}_cv_token`] || '');
+    }
+  }
+
+  // GitHub Actions sidebar (shared across environments)
+  const sidebar = document.createElement('div');
+  sidebar.className = 'github-sidebar';
+
+  const ghPane = document.createElement('div');
+  ghPane.className = 'pane';
+  ghPane.id = 'pane-github';
+
+  const ghHeader = document.createElement('div');
+  ghHeader.className = 'pane-header';
+
+  const ghTitleArea = document.createElement('div');
+  const ghTitleRow = document.createElement('div');
+  ghTitleRow.className = 'pane-title';
+  const ghDot = document.createElement('span');
+  ghDot.className = 'status-dot';
+  ghDot.id = 'status-github';
+  ghTitleRow.appendChild(ghDot);
+  const ghTitle = document.createElement('span');
+  ghTitle.textContent = 'GitHub Actions';
+  ghTitleRow.appendChild(ghTitle);
+  ghTitleArea.appendChild(ghTitleRow);
+  const ghStep = document.createElement('div');
+  ghStep.className = 'pane-step';
+  ghStep.textContent = 'CI Pipeline';
+  ghTitleArea.appendChild(ghStep);
+  ghHeader.appendChild(ghTitleArea);
+
+  const ghActions = document.createElement('div');
+  ghActions.className = 'pane-actions';
+  const ghConnectBtn = document.createElement('button');
+  ghConnectBtn.className = 'btn btn-connect';
+  ghConnectBtn.textContent = 'Connect';
+  const ghDisconnectBtn = document.createElement('button');
+  ghDisconnectBtn.className = 'btn btn-disconnect';
+  ghDisconnectBtn.textContent = 'Disconnect';
+  ghDisconnectBtn.style.display = 'none';
+  ghActions.appendChild(ghConnectBtn);
+  ghActions.appendChild(ghDisconnectBtn);
+  ghHeader.appendChild(ghActions);
+
+  const ghContent = document.createElement('div');
+  ghContent.className = 'pane-content';
+
+  const ghPanel = new GitHubPanel(ghContent);
+  ghPanel.onStatusChange = (status) => {
+    const dot = document.getElementById('status-github');
+    const paneEl = document.getElementById('pane-github');
+    dot.className = 'status-dot';
+    paneEl.className = 'pane';
+    if (status === 'connected') { dot.classList.add('connected'); paneEl.classList.add('connected'); }
+    else if (status === 'active') { dot.classList.add('active'); }
+    else if (status === 'error') { dot.classList.add('error'); paneEl.classList.add('error'); }
+  };
+
+  ghConnectBtn.addEventListener('click', () => {
+    ghPanel.connect();
+    ghConnectBtn.style.display = 'none';
+    ghDisconnectBtn.style.display = '';
+  });
+  ghDisconnectBtn.addEventListener('click', () => {
+    ghPanel.disconnect();
+    ghConnectBtn.style.display = '';
+    ghDisconnectBtn.style.display = 'none';
+  });
+
+  ghPane.appendChild(ghHeader);
+  ghPane.appendChild(ghContent);
+  sidebar.appendChild(ghPane);
+  dashboard.appendChild(sidebar);
+
+  // Environment rows area
+  const envArea = document.createElement('div');
+  envArea.className = 'env-area';
+
   const stepLabels = [
-    { key: 'actions', label: 'GitHub Actions', step: 'Step 1 · CI Pipeline' },
-    { key: 'cloudvision', label: 'CloudVision', step: 'Step 2 · Change Control' },
+    { key: 'cloudvision', label: 'CloudVision', step: 'Change Control' },
     { key: 'device0', label: null, step: '' },
     { key: 'device1', label: null, step: '' },
   ];
+
+  const cvPanels = {};
 
   for (const [envKey, env] of Object.entries(config.environments)) {
     const row = document.createElement('div');
@@ -108,46 +210,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         else if (status === 'error') { dot.classList.add('error'); paneEl.classList.add('error'); }
       }
 
-      if (step.key === 'actions') {
-        titleText.textContent = 'GitHub Actions';
-        const panel = new GitHubPanel(content, envKey);
-        panel.onStatusChange = updatePaneStatus;
-
-        const connectBtn = document.createElement('button');
-        connectBtn.className = 'btn btn-connect';
-        connectBtn.textContent = 'Connect';
-        const disconnectBtn = document.createElement('button');
-        disconnectBtn.className = 'btn btn-disconnect';
-        disconnectBtn.textContent = 'Disconnect';
-        disconnectBtn.style.display = 'none';
-
-        connectBtn.addEventListener('click', () => {
-          panel.connect();
-          connectBtn.style.display = 'none';
-          disconnectBtn.style.display = '';
-        });
-        disconnectBtn.addEventListener('click', () => {
-          panel.disconnect();
-          connectBtn.style.display = '';
-          disconnectBtn.style.display = 'none';
-        });
-        actions.appendChild(connectBtn);
-        actions.appendChild(disconnectBtn);
-
-      } else if (step.key === 'cloudvision') {
+      if (step.key === 'cloudvision') {
         titleText.textContent = 'CloudVision';
         const panel = new CloudVisionPanel(content, envKey);
         panel.onStatusChange = updatePaneStatus;
         panel.onConnect = () => {
           termManagers.forEach(tm => tm.refreshDevices());
         };
+        panel.onDisconnect = () => {
+          termManagers.forEach(tm => tm.resetDevices());
+        };
+
+        cvPanels[envKey] = panel;
 
         const connectBtn = document.createElement('button');
         connectBtn.className = 'btn btn-connect';
         connectBtn.textContent = 'Connect';
+        connectBtn.id = `cv-connect-${envKey}`;
         const disconnectBtn = document.createElement('button');
         disconnectBtn.className = 'btn btn-disconnect';
         disconnectBtn.textContent = 'Disconnect';
+        disconnectBtn.id = `cv-disconnect-${envKey}`;
         disconnectBtn.style.display = 'none';
 
         connectBtn.addEventListener('click', () => {
@@ -205,6 +288,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     row.appendChild(panes);
-    dashboard.appendChild(row);
+    envArea.appendChild(row);
+  }
+
+  dashboard.appendChild(envArea);
+
+  // Auto-connect if launched from a demo config
+  if (demoConfig) {
+    setTimeout(() => {
+      ghPanel.connect();
+      ghConnectBtn.style.display = 'none';
+      ghDisconnectBtn.style.display = '';
+
+      for (const envKey of Object.keys(config.environments)) {
+        const panel = cvPanels[envKey];
+        if (panel) {
+          panel.connect();
+          const cb = document.getElementById(`cv-connect-${envKey}`);
+          const db = document.getElementById(`cv-disconnect-${envKey}`);
+          if (cb) cb.style.display = 'none';
+          if (db) db.style.display = '';
+        }
+      }
+    }, 100);
   }
 });

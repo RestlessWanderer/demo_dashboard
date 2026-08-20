@@ -1,49 +1,52 @@
 class GitHubPanel {
-  constructor(container, envKey) {
+  constructor(container) {
     this.container = container;
-    this.envKey = envKey;
     this.connected = false;
     this.url = '';
     this.token = '';
     this.onStatusChange = null;
     this.refreshInterval = null;
+    this.expandedRuns = new Set();
+    this.jobsCache = {};
     this.showForm();
   }
 
   showForm() {
-    const savedUrl = localStorage.getItem(`github_url_${this.envKey}`) || '';
-    const savedToken = localStorage.getItem(`github_token_${this.envKey}`) || '';
+    const savedUrl = localStorage.getItem('github_url') || '';
+    const savedToken = localStorage.getItem('github_token') || '';
 
     this.container.innerHTML = `
       <div class="config-form">
         <div class="config-form-inner">
           <label class="config-label">GitHub Actions URL</label>
-          <input type="text" class="config-input" id="gh-url-${this.envKey}" placeholder="https://github.com/org/repo/actions" value="${this.escAttr(savedUrl)}">
+          <input type="text" class="config-input" id="gh-url" placeholder="https://github.com/org/repo/actions" value="${this.escAttr(savedUrl)}">
           <label class="config-label">GitHub PAT</label>
-          <input type="password" class="config-input" id="gh-token-${this.envKey}" placeholder="ghp_... (optional for demo data)">
+          <input type="password" class="config-input" id="gh-token" placeholder="ghp_... (optional for demo data)">
           <div class="config-hint">Leave PAT empty to use demo data</div>
         </div>
       </div>`;
 
-    const tokenInput = this.container.querySelector(`#gh-token-${this.envKey}`);
+    const tokenInput = this.container.querySelector('#gh-token');
     if (savedToken) tokenInput.value = savedToken;
   }
 
   connect() {
-    const urlInput = this.container.querySelector(`#gh-url-${this.envKey}`);
-    const tokenInput = this.container.querySelector(`#gh-token-${this.envKey}`);
+    const urlInput = this.container.querySelector('#gh-url');
+    const tokenInput = this.container.querySelector('#gh-token');
     if (!urlInput) return;
 
     this.url = urlInput.value.trim();
     this.token = tokenInput.value.trim();
 
-    localStorage.setItem(`github_url_${this.envKey}`, this.url);
-    localStorage.setItem(`github_token_${this.envKey}`, this.token);
+    localStorage.setItem('github_url', this.url);
+    localStorage.setItem('github_token', this.token);
 
     this.connected = true;
+    this.expandedRuns.clear();
+    this.jobsCache = {};
     this.showLoading();
     this.fetchData();
-    this.refreshInterval = setInterval(() => this.fetchData(), 30000);
+    this.refreshInterval = setInterval(() => this.fetchData(), 5000);
   }
 
   disconnect() {
@@ -52,6 +55,8 @@ class GitHubPanel {
       clearInterval(this.refreshInterval);
       this.refreshInterval = null;
     }
+    this.expandedRuns.clear();
+    this.jobsCache = {};
     if (this.onStatusChange) this.onStatusChange('idle');
     this.showForm();
   }
@@ -78,6 +83,22 @@ class GitHubPanel {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (!this.connected) return;
+
+      // Auto-expand in-progress runs and the latest run
+      if (data.runs.length > 0) {
+        this.expandedRuns.add(data.runs[0].id);
+      }
+      data.runs.forEach(r => {
+        if (r.status === 'in_progress' || r.status === 'queued') {
+          this.expandedRuns.add(r.id);
+        }
+      });
+
+      // Fetch jobs for expanded runs
+      const expandedIds = [...this.expandedRuns].filter(id => data.runs.some(r => r.id === id));
+      await Promise.all(expandedIds.map(id => this.fetchJobs(id)));
+
       if (this.connected) {
         this.renderRuns(data.runs, data.mock);
         this.updateStatus(data.runs);
@@ -90,20 +111,63 @@ class GitHubPanel {
     }
   }
 
+  async fetchJobs(runId) {
+    try {
+      const res = await fetch('/api/github/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: this.url, token: this.token, runId }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      this.jobsCache[runId] = data.jobs || [];
+    } catch {}
+  }
+
   renderRuns(runs, isMock) {
     const items = runs.map((run, i) => {
       const statusClass = this.runStatusClass(run);
       const statusIcon = this.runStatusIcon(run);
+      const isExpanded = this.expandedRuns.has(run.id);
+      const jobs = this.jobsCache[run.id];
+
+      let jobsHtml = '';
+      if (isExpanded && jobs && jobs.length > 0) {
+        const jobItems = jobs.map(job => {
+          const jClass = this.runStatusClass(job);
+          const jIcon = this.runStatusIcon(job);
+          const stepsHtml = (job.steps || []).map(step => {
+            const sClass = this.runStatusClass(step);
+            const sIcon = this.runStatusIcon(step);
+            return `<div class="step-item">
+              <span class="step-icon ${sClass}">${sIcon}</span>
+              <span class="step-name">${this.esc(step.name)}</span>
+            </div>`;
+          }).join('');
+          return `<div class="job-item">
+            <div class="job-header">
+              <span class="job-icon ${jClass}">${jIcon}</span>
+              <span class="job-name">${this.esc(job.name)}</span>
+            </div>
+            ${stepsHtml ? `<div class="job-steps">${stepsHtml}</div>` : ''}
+          </div>`;
+        }).join('');
+        jobsHtml = `<div class="run-jobs">${jobItems}</div>`;
+      }
+
+      const expandToggle = `<span class="run-expand" data-run-id="${run.id}">${isExpanded ? '▾' : '▸'}</span>`;
+
       return `
         <div class="api-item ${i === 0 ? 'api-item-latest' : ''}">
           <div class="api-item-icon ${statusClass}">${statusIcon}</div>
           <div class="api-item-details">
-            <div class="api-item-name">${this.esc(run.name)}</div>
+            <div class="api-item-name">${expandToggle} ${this.esc(run.name)}</div>
             <div class="api-item-meta">
               <span class="branch-badge">${this.esc(run.branch)}</span>
               <span class="api-item-time">${this.timeAgo(run.createdAt)}</span>
             </div>
             <div class="api-item-commit">${this.esc(run.commitMessage)}</div>
+            ${jobsHtml}
           </div>
         </div>`;
     }).join('');
@@ -118,6 +182,23 @@ class GitHubPanel {
         </div>
         ${this.footerHtml()}
       </div>`;
+
+    this.container.querySelectorAll('.run-expand').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const runId = parseInt(el.dataset.runId, 10);
+        if (this.expandedRuns.has(runId)) {
+          this.expandedRuns.delete(runId);
+        } else {
+          this.expandedRuns.add(runId);
+          if (!this.jobsCache[runId]) {
+            this.fetchJobs(runId).then(() => this.fetchData());
+            return;
+          }
+        }
+        this.fetchData();
+      });
+    });
   }
 
   renderError(message) {
@@ -137,7 +218,7 @@ class GitHubPanel {
   footerHtml() {
     if (!this.url) return '';
     return `<div class="api-panel-footer">
-      <a href="#" class="api-panel-link" onclick="window.open('${this.escAttr(this.url)}', 'gh_${this.envKey}'); return false;">
+      <a href="#" class="api-panel-link" onclick="window.open('${this.escAttr(this.url)}', 'github_actions'); return false;">
         Open GitHub Actions <span class="link-arrow">↗</span>
       </a>
     </div>`;
@@ -157,17 +238,19 @@ class GitHubPanel {
     }
   }
 
-  runStatusClass(run) {
-    if (run.status === 'in_progress' || run.status === 'queued') return 'status-running';
-    if (run.conclusion === 'success') return 'status-success';
-    if (run.conclusion === 'failure') return 'status-failure';
+  runStatusClass(item) {
+    if (item.status === 'in_progress' || item.status === 'queued') return 'status-running';
+    if (item.conclusion === 'success') return 'status-success';
+    if (item.conclusion === 'failure') return 'status-failure';
+    if (item.conclusion === 'skipped') return 'status-neutral';
     return 'status-neutral';
   }
 
-  runStatusIcon(run) {
-    if (run.status === 'in_progress' || run.status === 'queued') return '●';
-    if (run.conclusion === 'success') return '✓';
-    if (run.conclusion === 'failure') return '✗';
+  runStatusIcon(item) {
+    if (item.status === 'in_progress' || item.status === 'queued') return '●';
+    if (item.conclusion === 'success') return '✓';
+    if (item.conclusion === 'failure') return '✗';
+    if (item.conclusion === 'skipped') return '−';
     return '○';
   }
 

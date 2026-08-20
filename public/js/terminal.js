@@ -25,17 +25,11 @@ class TerminalManager {
   }
 
   showWaiting() {
-    const cvUrl = localStorage.getItem(`cv_url_${this.envKey}`);
-    const cvToken = localStorage.getItem(`cv_token_${this.envKey}`);
-    if (cvUrl || cvToken !== null) {
-      this.loadDevices();
-    } else {
-      this.container.innerHTML = `
-        <div class="terminal-placeholder">
-          <div class="terminal-placeholder-icon">⬡</div>
-          <div class="terminal-placeholder-text">Connect CloudVision to load device inventory</div>
-        </div>`;
-    }
+    this.container.innerHTML = `
+      <div class="terminal-placeholder">
+        <div class="terminal-placeholder-icon">⬡</div>
+        <div class="terminal-placeholder-text">Connect CloudVision to load device inventory</div>
+      </div>`;
   }
 
   async loadDevices() {
@@ -71,6 +65,15 @@ class TerminalManager {
   refreshDevices() {
     if (!this.connected) {
       this.loadDevices();
+    }
+  }
+
+  resetDevices() {
+    if (!this.connected) {
+      this.devices = [];
+      this.selectedDevice = null;
+      if (this.onDeviceChange) this.onDeviceChange('Select Device');
+      this.showWaiting();
     }
   }
 
