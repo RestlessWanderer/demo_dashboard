@@ -10,11 +10,23 @@
 <body>
   <header class="header">
     <div class="header-left">
-      <img src="assets/arista-logo.svg" alt="Arista Networks" class="logo">
-      <h1>Demo Dashboard</h1>
+      <img src="assets/arista-com-logo.png" alt="Arista Networks" class="logo">
+      <div class="header-divider"></div>
+      <img src="assets/avd-logo.png" alt="AVD" class="logo-icon">
+      <img src="assets/ci_pipeline.png" alt="CI Pipeline" class="logo-icon">
     </div>
     <div class="header-right">
-      <span class="header-subtitle">AVD Automation Pipeline</span>
+      <div class="header-credentials">
+        <label class="header-cred-label">SSH</label>
+        <input type="text" id="ssh-username" class="header-input" placeholder="Username" autocomplete="off">
+        <input type="password" id="ssh-password" class="header-input" placeholder="Password" autocomplete="off">
+      </div>
+      <div class="header-divider"></div>
+      <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode">
+        <span class="theme-toggle-icon" id="theme-icon-sun">☀️</span>
+        <span class="theme-toggle-icon hidden" id="theme-icon-moon">🌙</span>
+        <span class="theme-toggle-label" id="theme-label">Light Mode</span>
+      </button>
     </div>
   </header>
 
@@ -24,7 +36,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
-  <script src="js/iframe.js"></script>
+  <script src="js/github-panel.js"></script>
+  <script src="js/cloudvision-panel.js"></script>
   <script src="js/terminal.js"></script>
   <script src="js/app.js"></script>
 </body>

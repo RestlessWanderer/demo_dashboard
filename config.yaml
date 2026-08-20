@@ -1,5 +1,5 @@
 # Arista Demo Dashboard Configuration
-# Update the values below to match your demo environment.
+# URLs, tokens, and SSH credentials are configured in the browser UI.
 
 server:
   port: 3000
@@ -7,32 +7,5 @@ server:
 environments:
   dev:
     label: "DEV / TEST"
-    github_actions_url: "https://github.com/your-org/your-repo/actions"
-    cloudvision_url: "https://your-cv-dev-instance.example.com"
-    devices:
-      - name: "Spine-1"
-        host: "10.0.0.1"
-        port: 22
-        username: "admin"
-        password: "admin"
-      - name: "Leaf-1"
-        host: "10.0.0.2"
-        port: 22
-        username: "admin"
-        password: "admin"
-
   prod:
     label: "PRODUCTION"
-    github_actions_url: "https://github.com/your-org/your-repo/actions"
-    cloudvision_url: "https://your-cv-prod-instance.example.com"
-    devices:
-      - name: "Spine-1"
-        host: "10.0.1.1"
-        port: 22
-        username: "admin"
-        password: "admin"
-      - name: "Leaf-1"
-        host: "10.0.1.2"
-        port: 22
-        username: "admin"
-        password: "admin"

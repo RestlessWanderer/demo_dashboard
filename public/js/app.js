@@ -1,6 +1,34 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const dashboard = document.getElementById('dashboard');
 
+  const toggle = document.getElementById('theme-toggle');
+  const iconSun = document.getElementById('theme-icon-sun');
+  const iconMoon = document.getElementById('theme-icon-moon');
+  const themeLabel = document.getElementById('theme-label');
+
+  function applyTheme(theme) {
+    const isLight = theme === 'light';
+    document.body.classList.toggle('light-theme', isLight);
+    iconSun.classList.toggle('hidden', isLight);
+    iconMoon.classList.toggle('hidden', !isLight);
+    themeLabel.textContent = isLight ? 'Dark Mode' : 'Light Mode';
+    localStorage.setItem('theme', theme);
+  }
+
+  applyTheme(localStorage.getItem('theme') || 'dark');
+
+  toggle.addEventListener('click', () => {
+    const next = document.body.classList.contains('light-theme') ? 'dark' : 'light';
+    applyTheme(next);
+  });
+
+  const sshUser = document.getElementById('ssh-username');
+  const sshPass = document.getElementById('ssh-password');
+  sshUser.value = localStorage.getItem('ssh_username') || '';
+  sshPass.value = localStorage.getItem('ssh_password') || '';
+  sshUser.addEventListener('input', () => localStorage.setItem('ssh_username', sshUser.value));
+  sshPass.addEventListener('input', () => localStorage.setItem('ssh_password', sshPass.value));
+
   let config;
   try {
     const res = await fetch('/api/config');
@@ -16,8 +44,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const stepLabels = [
     { key: 'actions', label: 'GitHub Actions', step: 'Step 1 · CI Pipeline' },
     { key: 'cloudvision', label: 'CloudVision', step: 'Step 2 · Change Control' },
-    { key: 'device0', label: null, step: 'Step 3 · Config Verification' },
-    { key: 'device1', label: null, step: 'Step 4 · Config Verification' },
+    { key: 'device0', label: null, step: '' },
+    { key: 'device1', label: null, step: '' },
   ];
 
   for (const [envKey, env] of Object.entries(config.environments)) {
@@ -31,6 +59,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const panes = document.createElement('div');
     panes.className = 'env-panes';
+
+    const termManagers = [];
 
     for (let i = 0; i < stepLabels.length; i++) {
       const step = stepLabels[i];
@@ -68,63 +98,94 @@ document.addEventListener('DOMContentLoaded', async () => {
       const content = document.createElement('div');
       content.className = 'pane-content';
 
+      function updatePaneStatus(status) {
+        const dot = document.getElementById(`status-${envKey}-${step.key}`);
+        const paneEl = document.getElementById(`pane-${envKey}-${step.key}`);
+        dot.className = 'status-dot';
+        paneEl.className = 'pane';
+        if (status === 'connected') { dot.classList.add('connected'); paneEl.classList.add('connected'); }
+        else if (status === 'active') { dot.classList.add('active'); }
+        else if (status === 'error') { dot.classList.add('error'); paneEl.classList.add('error'); }
+      }
+
       if (step.key === 'actions') {
         titleText.textContent = 'GitHub Actions';
-        const openBtn = document.createElement('button');
-        openBtn.className = 'btn btn-open';
-        openBtn.textContent = 'Open';
-        openBtn.addEventListener('click', () => {
-          window.open(env.github_actions_url, `actions_${envKey}`);
-        });
-        actions.appendChild(openBtn);
-
-        const mgr = new IframeManager(content, env.github_actions_url, 'GitHub Actions');
-        window._iframeManagers[`GitHub Actions_${env.github_actions_url}`] = mgr;
-      } else if (step.key === 'cloudvision') {
-        titleText.textContent = 'CloudVision';
-        const openBtn = document.createElement('button');
-        openBtn.className = 'btn btn-open';
-        openBtn.textContent = 'Open';
-        openBtn.addEventListener('click', () => {
-          window.open(env.cloudvision_url, `cv_${envKey}`);
-        });
-        actions.appendChild(openBtn);
-
-        const mgr = new IframeManager(content, env.cloudvision_url, 'CloudVision');
-        window._iframeManagers[`CloudVision_${env.cloudvision_url}`] = mgr;
-      } else {
-        const devIdx = step.key === 'device0' ? 0 : 1;
-        const deviceName = env.devices[devIdx]?.name || `Device ${devIdx + 1}`;
-        titleText.textContent = deviceName;
+        const panel = new GitHubPanel(content, envKey);
+        panel.onStatusChange = updatePaneStatus;
 
         const connectBtn = document.createElement('button');
         connectBtn.className = 'btn btn-connect';
         connectBtn.textContent = 'Connect';
-
         const disconnectBtn = document.createElement('button');
         disconnectBtn.className = 'btn btn-disconnect';
         disconnectBtn.textContent = 'Disconnect';
         disconnectBtn.style.display = 'none';
 
-        const termMgr = new TerminalManager(content, envKey, devIdx, deviceName);
+        connectBtn.addEventListener('click', () => {
+          panel.connect();
+          connectBtn.style.display = 'none';
+          disconnectBtn.style.display = '';
+        });
+        disconnectBtn.addEventListener('click', () => {
+          panel.disconnect();
+          connectBtn.style.display = '';
+          disconnectBtn.style.display = 'none';
+        });
+        actions.appendChild(connectBtn);
+        actions.appendChild(disconnectBtn);
+
+      } else if (step.key === 'cloudvision') {
+        titleText.textContent = 'CloudVision';
+        const panel = new CloudVisionPanel(content, envKey);
+        panel.onStatusChange = updatePaneStatus;
+        panel.onConnect = () => {
+          termManagers.forEach(tm => tm.refreshDevices());
+        };
+
+        const connectBtn = document.createElement('button');
+        connectBtn.className = 'btn btn-connect';
+        connectBtn.textContent = 'Connect';
+        const disconnectBtn = document.createElement('button');
+        disconnectBtn.className = 'btn btn-disconnect';
+        disconnectBtn.textContent = 'Disconnect';
+        disconnectBtn.style.display = 'none';
+
+        connectBtn.addEventListener('click', () => {
+          panel.connect();
+          connectBtn.style.display = 'none';
+          disconnectBtn.style.display = '';
+        });
+        disconnectBtn.addEventListener('click', () => {
+          panel.disconnect();
+          connectBtn.style.display = '';
+          disconnectBtn.style.display = 'none';
+        });
+        actions.appendChild(connectBtn);
+        actions.appendChild(disconnectBtn);
+
+      } else {
+        titleText.textContent = 'Select Device';
+
+        const connectBtn = document.createElement('button');
+        connectBtn.className = 'btn btn-connect';
+        connectBtn.textContent = 'Connect';
+        const disconnectBtn = document.createElement('button');
+        disconnectBtn.className = 'btn btn-disconnect';
+        disconnectBtn.textContent = 'Disconnect';
+        disconnectBtn.style.display = 'none';
+
+        const termMgr = new TerminalManager(content, envKey);
+        termManagers.push(termMgr);
+
+        termMgr.onDeviceChange = (hostname) => {
+          titleText.textContent = hostname;
+        };
 
         termMgr.onStatusChange = (status) => {
-          const dot = document.getElementById(`status-${envKey}-${step.key}`);
-          const paneEl = document.getElementById(`pane-${envKey}-${step.key}`);
-
-          dot.className = 'status-dot';
-          paneEl.className = 'pane';
-
+          updatePaneStatus(status);
           if (status === 'connected') {
-            dot.classList.add('connected');
-            paneEl.classList.add('connected');
             connectBtn.style.display = 'none';
             disconnectBtn.style.display = '';
-          } else if (status === 'error') {
-            dot.classList.add('error');
-            paneEl.classList.add('error');
-            connectBtn.style.display = '';
-            disconnectBtn.style.display = 'none';
           } else {
             connectBtn.style.display = '';
             disconnectBtn.style.display = 'none';
@@ -133,7 +194,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         connectBtn.addEventListener('click', () => termMgr.connect());
         disconnectBtn.addEventListener('click', () => termMgr.disconnect());
-
         actions.appendChild(connectBtn);
         actions.appendChild(disconnectBtn);
       }
