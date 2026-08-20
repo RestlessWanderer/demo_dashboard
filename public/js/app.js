@@ -64,6 +64,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     for (const envKey of Object.keys(config.environments)) {
       localStorage.setItem(`cv_url_${envKey}`, demoConfig[`${envKey}_cv_url`] || '');
       localStorage.setItem(`cv_token_${envKey}`, demoConfig[`${envKey}_cv_token`] || '');
+      localStorage.setItem(`act_enabled_${envKey}`, demoConfig[`${envKey}_act_enabled`] ? 'true' : 'false');
+      localStorage.setItem(`act_url_${envKey}`, demoConfig[`${envKey}_act_url`] || '');
+      localStorage.setItem(`act_user_${envKey}`, demoConfig[`${envKey}_act_user`] || '');
+      localStorage.setItem(`act_token_${envKey}`, demoConfig[`${envKey}_act_token`] || '');
+      localStorage.setItem(`act_lab_${envKey}`, demoConfig[`${envKey}_act_lab`] || '');
     }
   }
 

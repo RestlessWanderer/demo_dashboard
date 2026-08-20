@@ -89,6 +89,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('demo-ssh-user').value = demo?.ssh_username || '';
     document.getElementById('demo-ssh-pass').value = demo?.ssh_password || '';
 
+    const actCheckbox = document.getElementById('demo-dev-act-enabled');
+    const actFields = document.getElementById('demo-dev-act-fields');
+    actCheckbox.checked = !!demo?.dev_act_enabled;
+    actFields.classList.toggle('hidden', !actCheckbox.checked);
+    document.getElementById('demo-dev-act-url').value = demo?.dev_act_url || '';
+    document.getElementById('demo-dev-act-user').value = demo?.dev_act_user || '';
+    document.getElementById('demo-dev-act-token').value = demo?.dev_act_token || '';
+    document.getElementById('demo-dev-act-lab').value = demo?.dev_act_lab || '';
+
     overlay.classList.remove('hidden');
   }
 
@@ -115,6 +124,11 @@ document.addEventListener('DOMContentLoaded', () => {
       prod_cv_token: document.getElementById('demo-prod-cv-token').value.trim(),
       ssh_username: document.getElementById('demo-ssh-user').value.trim(),
       ssh_password: document.getElementById('demo-ssh-pass').value.trim(),
+      dev_act_enabled: document.getElementById('demo-dev-act-enabled').checked,
+      dev_act_url: document.getElementById('demo-dev-act-url').value.trim(),
+      dev_act_user: document.getElementById('demo-dev-act-user').value.trim(),
+      dev_act_token: document.getElementById('demo-dev-act-token').value.trim(),
+      dev_act_lab: document.getElementById('demo-dev-act-lab').value.trim(),
     };
 
     const demos = getDemos();
@@ -149,6 +163,10 @@ document.addEventListener('DOMContentLoaded', () => {
   window.launchDemo = (id) => {
     window.location.href = `demo.html?id=${id}`;
   };
+
+  document.getElementById('demo-dev-act-enabled').addEventListener('change', (e) => {
+    document.getElementById('demo-dev-act-fields').classList.toggle('hidden', !e.target.checked);
+  });
 
   cancelBtn.addEventListener('click', closeModal);
   saveBtn.addEventListener('click', saveModal);

@@ -51,6 +51,32 @@ class TerminalManager {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       this.devices = data.devices || [];
+
+      // If ACT is configured for this env, fetch ACT IPs and match by hostname
+      const actEnabled = localStorage.getItem(`act_enabled_${this.envKey}`);
+      const actUrl = localStorage.getItem(`act_url_${this.envKey}`);
+      const actToken = localStorage.getItem(`act_token_${this.envKey}`);
+      const actLab = localStorage.getItem(`act_lab_${this.envKey}`);
+      if (actEnabled === 'true' && actToken && actLab) {
+        try {
+          const actRes = await fetch('/api/act/devices', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ actUrl, apiKey: actToken, labName: actLab, username: localStorage.getItem(`act_user_${this.envKey}`) || '' }),
+          });
+          if (actRes.ok) {
+            const actData = await actRes.json();
+            const actDevices = actData.devices || [];
+            const actMap = {};
+            actDevices.forEach(d => { actMap[d.hostname.toLowerCase()] = d.ipAddress; });
+            this.devices.forEach(d => {
+              const actIp = actMap[d.hostname.toLowerCase()];
+              if (actIp) d.ipAddress = actIp;
+            });
+          }
+        } catch {}
+      }
+
       this.showSelector();
     } catch (err) {
       this.container.innerHTML = `

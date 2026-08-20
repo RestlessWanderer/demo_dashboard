@@ -1007,3 +1007,27 @@ html, body {
   padding: 8px 20px;
   font-size: 13px;
 }
+
+.modal-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.modal-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--arista-blue);
+  cursor: pointer;
+}
+
+.act-fields {
+  padding-left: 24px;
+}
+
+.act-fields.hidden {
+  display: none;
+}

@@ -1,3 +1,5 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
@@ -243,6 +245,81 @@ app.post('/api/cloudvision/devices', async (req, res) => {
 
     devices.sort((a, b) => a.hostname.localeCompare(b.hostname));
     res.json({ devices, mock: false });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.post('/api/act/devices', async (req, res) => {
+  const { actUrl, apiKey, labName, username } = req.body || {};
+  if (!apiKey) return res.status(400).json({ error: 'apiKey required' });
+
+  try {
+    const actHost = normalizeUrl(actUrl || 'lab.act.arista.com');
+    const actBase = `${actHost}/rest/v1`;
+
+    const loginRes = await fetch(`${actBase}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: apiKey }),
+    });
+    if (!loginRes.ok) throw new Error(`ACT login failed: ${loginRes.status}`);
+    const loginData = await loginRes.json();
+    const token = loginData.token;
+    if (!token) throw new Error('No token in ACT login response');
+
+    // Fetch labs, filtering by user if provided
+    const labParams = new URLSearchParams();
+    if (labName) labParams.set('name', labName);
+    if (username) labParams.set('user', username);
+    const labsRes = await fetch(`${actBase}/labs?${labParams}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+    if (!labsRes.ok) throw new Error(`ACT labs API: ${labsRes.status}`);
+    const labsData = await labsRes.json();
+    let labs = labsData.result || labsData || [];
+    if (!Array.isArray(labs)) labs = [];
+
+    // If no lab name given, just list available labs
+    if (!labName) {
+      const labNames = labs.map(l => ({ name: l.name, id: l.lab_id || l.id, state: l.state }));
+      return res.json({ devices: [], labs: labNames, debug: `Found ${labs.length} labs` });
+    }
+
+    let lab = labs.find(l => (l.name || '').trim().toLowerCase() === labName.trim().toLowerCase());
+    if (!lab && labs.length === 0) {
+      return res.json({ devices: [], debug: `No labs returned for name "${labName}"` });
+    }
+    if (!lab) {
+      const names = labs.slice(0, 10).map(l => l.name);
+      return res.json({ devices: [], debug: `Lab "${labName}" not found in ${labs.length} results. First 10: ${names.join(', ')}` });
+    }
+
+    const labId = lab.id || lab.lab_id;
+
+    // Fetch full lab details to get the device list
+    const labDetailRes = await fetch(`${actBase}/labs/${labId}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+    if (!labDetailRes.ok) throw new Error(`ACT lab detail API: ${labDetailRes.status}`);
+    const labDetail = await labDetailRes.json();
+
+    const devicesObj = labDetail.devices;
+    if (!devicesObj || typeof devicesObj !== 'object') {
+      return res.json({ devices: [], debug: 'No devices in lab detail' });
+    }
+
+    const devices = [];
+    for (const nodeList of Object.values(devicesObj)) {
+      if (!Array.isArray(nodeList)) continue;
+      for (const n of nodeList) {
+        if (n.hostname && n.internal_ip) {
+          devices.push({ hostname: n.hostname, ipAddress: n.internal_ip });
+        }
+      }
+    }
+
+    res.json({ devices });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
