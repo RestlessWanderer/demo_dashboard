@@ -32,19 +32,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch {}
   }
 
-  // SSH credentials
-  const sshUser = document.getElementById('ssh-username');
-  const sshPass = document.getElementById('ssh-password');
-  if (demoConfig) {
-    sshUser.value = demoConfig.ssh_username || '';
-    sshPass.value = demoConfig.ssh_password || '';
-  } else {
-    sshUser.value = localStorage.getItem('ssh_username') || '';
-    sshPass.value = localStorage.getItem('ssh_password') || '';
-  }
-  sshUser.addEventListener('input', () => localStorage.setItem('ssh_username', sshUser.value));
-  sshPass.addEventListener('input', () => localStorage.setItem('ssh_password', sshPass.value));
-
   let config;
   try {
     const res = await fetch('/api/config');
@@ -69,6 +56,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       localStorage.setItem(`act_user_${envKey}`, demoConfig[`${envKey}_act_user`] || '');
       localStorage.setItem(`act_token_${envKey}`, demoConfig[`${envKey}_act_token`] || '');
       localStorage.setItem(`act_lab_${envKey}`, demoConfig[`${envKey}_act_lab`] || '');
+      localStorage.setItem(`ssh_username_${envKey}`, demoConfig[`${envKey}_ssh_username`] || '');
+      localStorage.setItem(`ssh_password_${envKey}`, demoConfig[`${envKey}_ssh_password`] || '');
     }
   }
 
@@ -316,5 +305,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
     }, 100);
+  }
+
+  // ACT Lab Status indicator
+  const actEnabled = localStorage.getItem('act_enabled_dev');
+  if (actEnabled === 'true') {
+    const actStatusEl = document.getElementById('act-status');
+    const actDivider = document.getElementById('act-divider');
+    const actDot = document.getElementById('act-status-dot');
+    const actLabel = document.getElementById('act-status-label');
+
+    actStatusEl.classList.remove('hidden');
+    actDivider.classList.remove('hidden');
+    actLabel.textContent = 'Checking…';
+
+    async function checkActStatus() {
+      try {
+        const res = await fetch('/api/act/lab-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            actUrl: localStorage.getItem('act_url_dev') || '',
+            apiKey: localStorage.getItem('act_token_dev') || '',
+            labName: localStorage.getItem('act_lab_dev') || '',
+            username: localStorage.getItem('act_user_dev') || '',
+          }),
+        });
+        if (!res.ok) throw new Error('API error');
+        const data = await res.json();
+        actDot.className = 'act-status-dot ' + (data.status === 'running' ? 'running' : 'stopped');
+        actLabel.textContent = data.label || 'Unknown';
+      } catch {
+        actDot.className = 'act-status-dot stopped';
+        actLabel.textContent = 'Error';
+      }
+    }
+
+    checkActStatus();
+    setInterval(checkActStatus, 30000);
   }
 });

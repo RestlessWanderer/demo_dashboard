@@ -70,14 +70,26 @@
         <input type="password" class="config-input" id="demo-prod-cv-token" placeholder="Service account token (optional)">
 
         <div class="modal-section-title">SSH Credentials</div>
+        <label class="config-label modal-sub-header">DEV / TEST</label>
         <div class="modal-row">
           <div class="modal-field">
             <label class="config-label">Username</label>
-            <input type="text" class="config-input" id="demo-ssh-user" placeholder="admin">
+            <input type="text" class="config-input" id="demo-dev-ssh-user" placeholder="admin">
           </div>
           <div class="modal-field">
             <label class="config-label">Password</label>
-            <input type="password" class="config-input" id="demo-ssh-pass" placeholder="admin">
+            <input type="password" class="config-input" id="demo-dev-ssh-pass" placeholder="admin">
+          </div>
+        </div>
+        <label class="config-label modal-sub-header">PRODUCTION</label>
+        <div class="modal-row">
+          <div class="modal-field">
+            <label class="config-label">Username</label>
+            <input type="text" class="config-input" id="demo-prod-ssh-user" placeholder="admin">
+          </div>
+          <div class="modal-field">
+            <label class="config-label">Password</label>
+            <input type="password" class="config-input" id="demo-prod-ssh-pass" placeholder="admin">
           </div>
         </div>
       </div>

@@ -156,13 +156,13 @@ class TerminalManager {
     const device = this.getSelectedDevice();
     if (!device) return;
 
-    const username = document.getElementById('ssh-username')?.value?.trim();
-    const password = document.getElementById('ssh-password')?.value?.trim();
+    const username = localStorage.getItem(`ssh_username_${this.envKey}`) || '';
+    const password = localStorage.getItem(`ssh_password_${this.envKey}`) || '';
     if (!username || !password) {
       this.container.innerHTML = `
         <div class="terminal-placeholder">
           <div class="terminal-placeholder-icon">⚠</div>
-          <div class="terminal-placeholder-text">Enter SSH credentials in the header first</div>
+          <div class="terminal-placeholder-text">SSH credentials not configured for this environment</div>
         </div>`;
       setTimeout(() => this.showSelector(), 3000);
       return;

@@ -123,6 +123,45 @@ html, body {
   color: var(--text-muted);
 }
 
+/* ACT Lab Status */
+.act-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.act-status.hidden {
+  display: none;
+}
+
+.act-divider.hidden {
+  display: none;
+}
+
+.act-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.act-status-dot.running {
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
+}
+
+.act-status-dot.stopped {
+  background: var(--error);
+  box-shadow: 0 0 8px var(--error);
+}
+
+.act-status-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
 /* Theme Toggle */
 .theme-toggle {
   display: flex;
@@ -551,13 +590,15 @@ html, body {
 /* Run expand toggle */
 .run-expand {
   cursor: pointer;
-  color: var(--text-muted);
-  font-size: 10px;
-  margin-right: 2px;
+  color: var(--arista-blue-light);
+  font-size: 13px;
+  margin-right: 3px;
   user-select: none;
+  opacity: 0.8;
 }
 
 .run-expand:hover {
+  opacity: 1;
   color: var(--text-primary);
 }
 
@@ -1001,6 +1042,12 @@ html, body {
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--border-color);
+}
+
+.modal-sub-header {
+  font-size: 11px;
+  color: var(--arista-blue-light);
+  margin-top: 8px;
 }
 
 .modal-actions .btn {

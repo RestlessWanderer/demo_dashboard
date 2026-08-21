@@ -18,12 +18,12 @@
       <img src="assets/ci_pipeline.png" alt="CI Pipeline" class="logo-icon">
     </div>
     <div class="header-right">
-      <div class="header-credentials">
-        <label class="header-cred-label">SSH</label>
-        <input type="text" id="ssh-username" class="header-input" placeholder="Username" autocomplete="off">
-        <input type="password" id="ssh-password" class="header-input" placeholder="Password" autocomplete="off">
+      <div class="act-status hidden" id="act-status">
+        <span class="header-cred-label">ACT Lab Status</span>
+        <span class="act-status-dot" id="act-status-dot"></span>
+        <span class="act-status-label" id="act-status-label"></span>
       </div>
-      <div class="header-divider"></div>
+      <div class="header-divider act-divider hidden" id="act-divider"></div>
       <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode">
         <span class="theme-toggle-icon" id="theme-icon-sun">☀️</span>
         <span class="theme-toggle-icon hidden" id="theme-icon-moon">🌙</span>

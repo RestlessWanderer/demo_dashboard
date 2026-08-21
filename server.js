@@ -125,11 +125,35 @@ app.post('/api/github/jobs', async (req, res) => {
 function generateMockChangeControls() {
   const now = Date.now();
   return [
-    { id: 'CC-2024-0042', name: 'Spine BGP Peer Update', status: 'COMPLETED', approvalStatus: 'APPROVED', createdBy: 'networkeng', createdAt: new Date(now - 20 * 60000).toISOString() },
-    { id: 'CC-2024-0043', name: 'MLAG Domain Configuration', status: 'PENDING_APPROVAL', approvalStatus: 'PENDING', createdBy: 'netops', createdAt: new Date(now - 5 * 60000).toISOString() },
-    { id: 'CC-2024-0044', name: 'ACL Policy Refresh', status: 'IN_PROGRESS', approvalStatus: 'APPROVED', createdBy: 'seceng', createdAt: new Date(now - 8 * 60000).toISOString() },
-    { id: 'CC-2024-0041', name: 'VXLAN Overlay Update', status: 'COMPLETED', approvalStatus: 'APPROVED', createdBy: 'networkeng', createdAt: new Date(now - 2 * 3600000).toISOString() },
-    { id: 'CC-2024-0040', name: 'Management VRF Changes', status: 'COMPLETED', approvalStatus: 'APPROVED', createdBy: 'netops', createdAt: new Date(now - 4 * 3600000).toISOString() },
+    { id: 'CC-2024-0042', name: 'Spine BGP Peer Update', status: 'COMPLETED', approvalStatus: 'APPROVED', createdBy: 'networkeng', createdAt: new Date(now - 20 * 60000).toISOString(), stages: [
+      { id: 'root', name: 'Root', status: 'COMPLETED', steps: [] },
+      { id: 's1', name: 'Update spine-1', status: 'COMPLETED', action: 'Config Push', steps: [
+        { name: 'Validate Config', status: 'FINISHED' },
+        { name: 'Push Config', status: 'FINISHED' },
+      ]},
+      { id: 's2', name: 'Update spine-2', status: 'COMPLETED', action: 'Config Push', steps: [
+        { name: 'Validate Config', status: 'FINISHED' },
+        { name: 'Push Config', status: 'FINISHED' },
+      ]},
+    ]},
+    { id: 'CC-2024-0043', name: 'MLAG Domain Configuration', status: 'NOT_STARTED', approvalStatus: 'PENDING', createdBy: 'netops', createdAt: new Date(now - 5 * 60000).toISOString(), stages: [
+      { id: 'root', name: 'Root', status: 'NOT_STARTED', steps: [] },
+      { id: 's1', name: 'Configure leaf-1a', status: 'NOT_STARTED', action: 'Config Push', steps: [] },
+      { id: 's2', name: 'Configure leaf-1b', status: 'NOT_STARTED', action: 'Config Push', steps: [] },
+    ]},
+    { id: 'CC-2024-0044', name: 'ACL Policy Refresh', status: 'RUNNING', approvalStatus: 'APPROVED', createdBy: 'seceng', createdAt: new Date(now - 8 * 60000).toISOString(), stages: [
+      { id: 'root', name: 'Root', status: 'RUNNING', steps: [] },
+      { id: 's1', name: 'Update ACL on leaf-1a', status: 'COMPLETED', action: 'Config Push', steps: [
+        { name: 'Validate Config', status: 'FINISHED' },
+        { name: 'Push Config', status: 'FINISHED' },
+      ]},
+      { id: 's2', name: 'Update ACL on leaf-2a', status: 'RUNNING', action: 'Config Push', steps: [
+        { name: 'Validate Config', status: 'FINISHED' },
+        { name: 'Push Config', status: 'RUNNING' },
+      ]},
+    ]},
+    { id: 'CC-2024-0041', name: 'VXLAN Overlay Update', status: 'COMPLETED', approvalStatus: 'APPROVED', createdBy: 'networkeng', createdAt: new Date(now - 2 * 3600000).toISOString(), stages: [] },
+    { id: 'CC-2024-0040', name: 'Management VRF Changes', status: 'COMPLETED', approvalStatus: 'APPROVED', createdBy: 'netops', createdAt: new Date(now - 4 * 3600000).toISOString(), stages: [] },
   ];
 }
 
@@ -163,6 +187,24 @@ app.post('/api/cloudvision/changecontrols', async (req, res) => {
       if (val.status) {
         status = val.status.replace('CHANGE_CONTROL_STATUS_', '');
       }
+      const stagesMap = change.stages?.values || change.stages || {};
+      const stages = Object.entries(stagesMap).map(([stageId, stage]) => {
+        const stepsMap = stage.steps?.values || stage.steps || {};
+        const steps = Object.entries(stepsMap).map(([stepId, step]) => ({
+          name: step.name || stepId,
+          status: (step.status || '').replace('STEP_STATUS_', ''),
+          error: step.error || '',
+        }));
+        return {
+          id: stageId,
+          name: stage.name || stageId,
+          status: (stage.status || '').replace('STAGE_STATUS_', ''),
+          action: stage.action?.name || '',
+          error: stage.error || '',
+          steps,
+        };
+      });
+
       return {
         id: key.id || val.id || '',
         name: change.name || val.name || key.id || '',
@@ -170,6 +212,7 @@ app.post('/api/cloudvision/changecontrols', async (req, res) => {
         approvalStatus: val.approve?.value ? 'APPROVED' : 'PENDING',
         createdBy: change.user || val.createdBy || '',
         createdAt: obj.result?.time || val.createdAt || '',
+        stages,
       };
     });
     items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -245,6 +288,55 @@ app.post('/api/cloudvision/devices', async (req, res) => {
 
     devices.sort((a, b) => a.hostname.localeCompare(b.hostname));
     res.json({ devices, mock: false });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+const ACT_LAB_STATES = {
+  0: 'Ready', 1: 'Pending', 2: 'Running', 3: 'Stopping',
+  4: 'Stopped', 5: 'Deploying', 6: 'DeploymentFailed',
+  7: 'Failed', 8: 'Starting', 9: 'Undeploying', 10: 'Queued',
+  11: 'Job Created', 12: 'Configuring',
+};
+
+app.post('/api/act/lab-status', async (req, res) => {
+  const { actUrl, apiKey, labName, username } = req.body || {};
+  if (!apiKey || !labName) return res.status(400).json({ error: 'apiKey and labName required' });
+
+  try {
+    const actHost = normalizeUrl(actUrl || 'lab.act.arista.com');
+    const actBase = `${actHost}/rest/v1`;
+
+    const loginRes = await fetch(`${actBase}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: apiKey }),
+    });
+    if (!loginRes.ok) throw new Error(`ACT login failed: ${loginRes.status}`);
+    const loginData = await loginRes.json();
+    const token = loginData.token;
+    if (!token) throw new Error('No token in ACT login response');
+
+    const labParams = new URLSearchParams();
+    if (labName) labParams.set('name', labName);
+    if (username) labParams.set('user', username);
+    const labsRes = await fetch(`${actBase}/labs?${labParams}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+    if (!labsRes.ok) throw new Error(`ACT labs API: ${labsRes.status}`);
+    const labsData = await labsRes.json();
+    let labs = labsData.result || labsData || [];
+    if (!Array.isArray(labs)) labs = [];
+
+    const lab = labs.find(l => (l.name || '').trim().toLowerCase() === labName.trim().toLowerCase());
+    if (!lab) return res.json({ status: 'unknown', label: 'Not Found' });
+
+    const stateNum = lab.state;
+    const label = ACT_LAB_STATES[stateNum] || `Unknown (${stateNum})`;
+    const running = stateNum === 2;
+
+    res.json({ status: running ? 'running' : 'stopped', label, state: stateNum });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

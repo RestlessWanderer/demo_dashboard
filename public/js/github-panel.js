@@ -7,6 +7,7 @@ class GitHubPanel {
     this.onStatusChange = null;
     this.refreshInterval = null;
     this.expandedRuns = new Set();
+    this.manuallyCollapsed = new Set();
     this.jobsCache = {};
     this.showForm();
   }
@@ -85,12 +86,12 @@ class GitHubPanel {
       const data = await res.json();
       if (!this.connected) return;
 
-      // Auto-expand in-progress runs and the latest run
-      if (data.runs.length > 0) {
+      // Auto-expand in-progress runs and the latest, unless user manually collapsed
+      if (data.runs.length > 0 && !this.manuallyCollapsed.has(data.runs[0].id)) {
         this.expandedRuns.add(data.runs[0].id);
       }
       data.runs.forEach(r => {
-        if (r.status === 'in_progress' || r.status === 'queued') {
+        if ((r.status === 'in_progress' || r.status === 'queued') && !this.manuallyCollapsed.has(r.id)) {
           this.expandedRuns.add(r.id);
         }
       });
@@ -155,7 +156,7 @@ class GitHubPanel {
         jobsHtml = `<div class="run-jobs">${jobItems}</div>`;
       }
 
-      const expandToggle = `<span class="run-expand" data-run-id="${run.id}">${isExpanded ? '▾' : '▸'}</span>`;
+      const expandToggle = `<span class="run-expand" data-run-id="${run.id}">${isExpanded ? '⊖' : '⊕'}</span>`;
 
       return `
         <div class="api-item ${i === 0 ? 'api-item-latest' : ''}">
@@ -189,8 +190,10 @@ class GitHubPanel {
         const runId = parseInt(el.dataset.runId, 10);
         if (this.expandedRuns.has(runId)) {
           this.expandedRuns.delete(runId);
+          this.manuallyCollapsed.add(runId);
         } else {
           this.expandedRuns.add(runId);
+          this.manuallyCollapsed.delete(runId);
           if (!this.jobsCache[runId]) {
             this.fetchJobs(runId).then(() => this.fetchData());
             return;

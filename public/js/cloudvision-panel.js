@@ -9,6 +9,8 @@ class CloudVisionPanel {
     this.onConnect = null;
     this.onDisconnect = null;
     this.refreshInterval = null;
+    this.expandedCCs = new Set();
+    this.manuallyCollapsed = new Set();
     this.showForm();
   }
 
@@ -43,6 +45,7 @@ class CloudVisionPanel {
     localStorage.setItem(`cv_token_${this.envKey}`, this.token);
 
     this.connected = true;
+    this.expandedCCs.clear();
     this.showLoading();
     this.fetchData();
     this.refreshInterval = setInterval(() => this.fetchData(), 10000);
@@ -56,6 +59,7 @@ class CloudVisionPanel {
       clearInterval(this.refreshInterval);
       this.refreshInterval = null;
     }
+    this.expandedCCs.clear();
     if (this.onStatusChange) this.onStatusChange('idle');
     if (this.onDisconnect) this.onDisconnect();
     this.showForm();
@@ -84,6 +88,16 @@ class CloudVisionPanel {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (this.connected) {
+        // Auto-expand running/in-progress CCs and the latest
+        if (data.changeControls.length > 0 && !this.manuallyCollapsed.has(data.changeControls[0].id)) {
+          this.expandedCCs.add(data.changeControls[0].id);
+        }
+        data.changeControls.forEach(cc => {
+          if (cc.status === 'RUNNING' && !this.manuallyCollapsed.has(cc.id)) {
+            this.expandedCCs.add(cc.id);
+          }
+        });
+
         this.renderChangeControls(data.changeControls, data.mock);
         this.updateStatus(data.changeControls);
       }
@@ -101,11 +115,45 @@ class CloudVisionPanel {
       const statusLabel = this.ccStatusLabel(cc);
       const approvalClass = this.approvalClass(cc);
       const approvalLabel = this.approvalLabel(cc);
+      const isExpanded = this.expandedCCs.has(cc.id);
+      const hasStages = cc.stages && cc.stages.length > 0;
+
+      let stagesHtml = '';
+      if (isExpanded && hasStages) {
+        const nonRootStages = cc.stages.filter(s => s.id !== 'root' && s.name !== 'Root');
+        if (nonRootStages.length > 0) {
+          const stageItems = nonRootStages.map(stage => {
+            const sClass = this.stageStatusClass(stage);
+            const sIcon = this.stageStatusIcon(stage);
+            const stepsHtml = (stage.steps || []).map(step => {
+              const stepClass = this.stepStatusClass(step);
+              const stepIcon = this.stepStatusIcon(step);
+              return `<div class="step-item">
+                <span class="step-icon ${stepClass}">${stepIcon}</span>
+                <span class="step-name">${this.esc(step.name)}</span>
+              </div>`;
+            }).join('');
+            return `<div class="job-item">
+              <div class="job-header">
+                <span class="job-icon ${sClass}">${sIcon}</span>
+                <span class="job-name">${this.esc(stage.name)}</span>
+              </div>
+              ${stepsHtml ? `<div class="job-steps">${stepsHtml}</div>` : ''}
+            </div>`;
+          }).join('');
+          stagesHtml = `<div class="run-jobs">${stageItems}</div>`;
+        }
+      }
+
+      const expandToggle = hasStages
+        ? `<span class="run-expand" data-cc-id="${this.escAttr(cc.id)}">${isExpanded ? '⊖' : '⊕'}</span> `
+        : '';
+
       return `
         <div class="api-item ${i === 0 ? 'api-item-latest' : ''}">
           <div class="api-item-icon ${statusClass}">${this.ccStatusIcon(cc)}</div>
           <div class="api-item-details">
-            <div class="api-item-name">${this.esc(cc.name)}</div>
+            <div class="api-item-name">${expandToggle}${this.esc(cc.name)}</div>
             <div class="api-item-meta">
               <span class="cc-status-badge ${statusClass}">${statusLabel}</span>
               <span class="cc-approval-badge ${approvalClass}">${approvalLabel}</span>
@@ -113,6 +161,7 @@ class CloudVisionPanel {
             <div class="api-item-commit">
               ${this.esc(cc.createdBy)} · ${this.timeAgo(cc.createdAt)}
             </div>
+            ${stagesHtml}
           </div>
         </div>`;
     }).join('');
@@ -127,6 +176,21 @@ class CloudVisionPanel {
         </div>
         ${this.footerHtml()}
       </div>`;
+
+    this.container.querySelectorAll('.run-expand').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const ccId = el.dataset.ccId;
+        if (this.expandedCCs.has(ccId)) {
+          this.expandedCCs.delete(ccId);
+          this.manuallyCollapsed.add(ccId);
+        } else {
+          this.expandedCCs.add(ccId);
+          this.manuallyCollapsed.delete(ccId);
+        }
+        this.fetchData();
+      });
+    });
   }
 
   renderError(message) {
@@ -154,9 +218,9 @@ class CloudVisionPanel {
 
   updateStatus(ccs) {
     if (!this.onStatusChange || !ccs.length) return;
-    const hasInProgress = ccs.some(cc => cc.status === 'IN_PROGRESS');
-    const hasPending = ccs.some(cc => cc.status === 'PENDING_APPROVAL' || cc.approvalStatus === 'PENDING');
-    if (hasInProgress) {
+    const hasRunning = ccs.some(cc => cc.status === 'RUNNING');
+    const hasPending = ccs.some(cc => cc.status === 'NOT_STARTED' && cc.approvalStatus === 'PENDING');
+    if (hasRunning) {
       this.onStatusChange('active');
     } else if (hasPending) {
       this.onStatusChange('warning');
@@ -168,8 +232,9 @@ class CloudVisionPanel {
   ccStatusClass(cc) {
     switch (cc.status) {
       case 'COMPLETED': return 'status-success';
-      case 'IN_PROGRESS': return 'status-running';
-      case 'PENDING_APPROVAL': return 'status-warning';
+      case 'RUNNING': return 'status-running';
+      case 'NOT_STARTED': return cc.approvalStatus === 'PENDING' ? 'status-warning' : 'status-neutral';
+      case 'SCHEDULED': return 'status-neutral';
       default: return 'status-neutral';
     }
   }
@@ -177,8 +242,9 @@ class CloudVisionPanel {
   ccStatusIcon(cc) {
     switch (cc.status) {
       case 'COMPLETED': return '✓';
-      case 'IN_PROGRESS': return '●';
-      case 'PENDING_APPROVAL': return '◷';
+      case 'RUNNING': return '●';
+      case 'NOT_STARTED': return '○';
+      case 'SCHEDULED': return '◷';
       default: return '○';
     }
   }
@@ -186,8 +252,9 @@ class CloudVisionPanel {
   ccStatusLabel(cc) {
     switch (cc.status) {
       case 'COMPLETED': return 'Completed';
-      case 'IN_PROGRESS': return 'Running';
-      case 'PENDING_APPROVAL': return 'Pending';
+      case 'RUNNING': return 'Running';
+      case 'NOT_STARTED': return 'Not Started';
+      case 'SCHEDULED': return 'Scheduled';
       default: return cc.status || 'Unknown';
     }
   }
@@ -198,6 +265,46 @@ class CloudVisionPanel {
 
   approvalLabel(cc) {
     return cc.approvalStatus === 'APPROVED' ? 'Approved' : 'Awaiting';
+  }
+
+  stageStatusClass(stage) {
+    switch (stage.status) {
+      case 'COMPLETED': return 'status-success';
+      case 'RUNNING': return 'status-running';
+      case 'NOT_STARTED': return 'status-neutral';
+      default: return 'status-neutral';
+    }
+  }
+
+  stageStatusIcon(stage) {
+    switch (stage.status) {
+      case 'COMPLETED': return stage.error ? '✗' : '✓';
+      case 'RUNNING': return '●';
+      case 'NOT_STARTED': return '○';
+      default: return '○';
+    }
+  }
+
+  stepStatusClass(step) {
+    switch (step.status) {
+      case 'FINISHED': return step.error ? 'status-failure' : 'status-success';
+      case 'RUNNING': return 'status-running';
+      case 'FAILED': return 'status-failure';
+      case 'SKIPPED': return 'status-neutral';
+      case 'NOT_STARTED': return 'status-neutral';
+      default: return 'status-neutral';
+    }
+  }
+
+  stepStatusIcon(step) {
+    switch (step.status) {
+      case 'FINISHED': return step.error ? '✗' : '✓';
+      case 'RUNNING': return '●';
+      case 'FAILED': return '✗';
+      case 'SKIPPED': return '−';
+      case 'NOT_STARTED': return '○';
+      default: return '○';
+    }
   }
 
   timeAgo(dateStr) {

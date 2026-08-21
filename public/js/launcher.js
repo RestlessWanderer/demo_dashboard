@@ -86,8 +86,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('demo-dev-cv-token').value = demo?.dev_cv_token || '';
     document.getElementById('demo-prod-cv-url').value = demo?.prod_cv_url || '';
     document.getElementById('demo-prod-cv-token').value = demo?.prod_cv_token || '';
-    document.getElementById('demo-ssh-user').value = demo?.ssh_username || '';
-    document.getElementById('demo-ssh-pass').value = demo?.ssh_password || '';
+    document.getElementById('demo-dev-ssh-user').value = demo?.dev_ssh_username || '';
+    document.getElementById('demo-dev-ssh-pass').value = demo?.dev_ssh_password || '';
+    document.getElementById('demo-prod-ssh-user').value = demo?.prod_ssh_username || '';
+    document.getElementById('demo-prod-ssh-pass').value = demo?.prod_ssh_password || '';
 
     const actCheckbox = document.getElementById('demo-dev-act-enabled');
     const actFields = document.getElementById('demo-dev-act-fields');
@@ -122,8 +124,10 @@ document.addEventListener('DOMContentLoaded', () => {
       dev_cv_token: document.getElementById('demo-dev-cv-token').value.trim(),
       prod_cv_url: document.getElementById('demo-prod-cv-url').value.trim(),
       prod_cv_token: document.getElementById('demo-prod-cv-token').value.trim(),
-      ssh_username: document.getElementById('demo-ssh-user').value.trim(),
-      ssh_password: document.getElementById('demo-ssh-pass').value.trim(),
+      dev_ssh_username: document.getElementById('demo-dev-ssh-user').value.trim(),
+      dev_ssh_password: document.getElementById('demo-dev-ssh-pass').value.trim(),
+      prod_ssh_username: document.getElementById('demo-prod-ssh-user').value.trim(),
+      prod_ssh_password: document.getElementById('demo-prod-ssh-pass').value.trim(),
       dev_act_enabled: document.getElementById('demo-dev-act-enabled').checked,
       dev_act_url: document.getElementById('demo-dev-act-url').value.trim(),
       dev_act_user: document.getElementById('demo-dev-act-user').value.trim(),
