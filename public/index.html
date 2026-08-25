@@ -36,60 +36,78 @@
         <label class="config-label">Demo Name</label>
         <input type="text" class="config-input" id="demo-name" placeholder="e.g., Customer ACME Demo">
 
-        <div class="modal-section-title">GitHub Actions</div>
-        <label class="config-label">Actions URL</label>
-        <input type="text" class="config-input" id="demo-github-url" placeholder="https://github.com/org/repo/actions">
-        <label class="config-label">Personal Access Token</label>
-        <input type="password" class="config-input" id="demo-github-token" placeholder="ghp_... (optional for demo data)">
-
-        <div class="modal-section-title">DEV / TEST CloudVision</div>
-        <label class="config-label">CloudVision URL</label>
-        <input type="text" class="config-input" id="demo-dev-cv-url" placeholder="https://your-cv-dev-instance.example.com">
-        <label class="config-label">API Key</label>
-        <input type="password" class="config-input" id="demo-dev-cv-token" placeholder="Service account token (optional)">
-
-        <div class="modal-checkbox-row">
-          <input type="checkbox" id="demo-dev-act-enabled" class="modal-checkbox">
-          <label for="demo-dev-act-enabled" class="config-label" style="margin-top:0">Dev environment uses ACT</label>
+        <!-- GitHub Actions (collapsible) -->
+        <div class="section-toggle" id="section-github-toggle" data-section="github">
+          <span class="section-toggle-icon">⊕</span> GitHub Actions
+          <span class="section-toggle-remove hidden">×</span>
         </div>
-        <div id="demo-dev-act-fields" class="act-fields hidden">
-          <label class="config-label">ACT URL</label>
-          <input type="text" class="config-input" id="demo-dev-act-url" placeholder="ce.act.arista.com">
-          <label class="config-label">ACT Username</label>
-          <input type="text" class="config-input" id="demo-dev-act-user" placeholder="e.g., jhemann">
-          <label class="config-label">ACT API Token</label>
-          <input type="password" class="config-input" id="demo-dev-act-token" placeholder="ACT API key">
-          <label class="config-label">ACT Lab Name</label>
-          <input type="text" class="config-input" id="demo-dev-act-lab" placeholder="e.g., My AVD Lab">
+        <div class="section-fields hidden" id="section-github-fields">
+          <label class="config-label">Actions URL</label>
+          <input type="text" class="config-input" id="demo-github-url" placeholder="https://github.com/org/repo/actions">
+          <label class="config-label">Personal Access Token</label>
+          <input type="password" class="config-input" id="demo-github-token" placeholder="ghp_... (optional for demo data)">
         </div>
 
-        <div class="modal-section-title">PRODUCTION CloudVision</div>
-        <label class="config-label">CloudVision URL</label>
-        <input type="text" class="config-input" id="demo-prod-cv-url" placeholder="https://your-cv-prod-instance.example.com">
-        <label class="config-label">API Key</label>
-        <input type="password" class="config-input" id="demo-prod-cv-token" placeholder="Service account token (optional)">
+        <!-- DEV / TEST (collapsible) -->
+        <div class="section-toggle" id="section-dev-toggle" data-section="dev">
+          <span class="section-toggle-icon">⊕</span> DEV / TEST
+          <span class="section-toggle-remove hidden">×</span>
+        </div>
+        <div class="section-fields hidden" id="section-dev-fields">
+          <label class="config-label">CloudVision URL</label>
+          <input type="text" class="config-input" id="demo-dev-cv-url" placeholder="https://your-cv-dev-instance.example.com">
+          <label class="config-label">API Key</label>
+          <input type="password" class="config-input" id="demo-dev-cv-token" placeholder="Service account token (optional)">
 
-        <div class="modal-section-title">SSH Credentials</div>
-        <label class="config-label modal-sub-header">DEV / TEST</label>
-        <div class="modal-row">
-          <div class="modal-field">
-            <label class="config-label">Username</label>
-            <input type="text" class="config-input" id="demo-dev-ssh-user" placeholder="admin">
+          <div class="modal-checkbox-row">
+            <input type="checkbox" id="demo-dev-act-enabled" class="modal-checkbox">
+            <label for="demo-dev-act-enabled" class="config-label" style="margin-top:0">Dev environment uses ACT</label>
           </div>
-          <div class="modal-field">
-            <label class="config-label">Password</label>
-            <input type="password" class="config-input" id="demo-dev-ssh-pass" placeholder="admin">
+          <div id="demo-dev-act-fields" class="act-fields hidden">
+            <label class="config-label">ACT URL</label>
+            <input type="text" class="config-input" id="demo-dev-act-url" placeholder="ce.act.arista.com">
+            <label class="config-label">ACT Username</label>
+            <input type="text" class="config-input" id="demo-dev-act-user" placeholder="e.g., jhemann">
+            <label class="config-label">ACT API Token</label>
+            <input type="password" class="config-input" id="demo-dev-act-token" placeholder="ACT API key">
+            <label class="config-label">ACT Lab Name</label>
+            <input type="text" class="config-input" id="demo-dev-act-lab" placeholder="e.g., My AVD Lab">
+          </div>
+
+          <div class="modal-section-title" style="font-size:10px">SSH Credentials</div>
+          <div class="modal-row">
+            <div class="modal-field">
+              <label class="config-label">Username</label>
+              <input type="text" class="config-input" id="demo-dev-ssh-user" placeholder="admin">
+            </div>
+            <div class="modal-field">
+              <label class="config-label">Password</label>
+              <input type="password" class="config-input" id="demo-dev-ssh-pass" placeholder="admin">
+            </div>
           </div>
         </div>
-        <label class="config-label modal-sub-header">PRODUCTION</label>
-        <div class="modal-row">
-          <div class="modal-field">
-            <label class="config-label">Username</label>
-            <input type="text" class="config-input" id="demo-prod-ssh-user" placeholder="admin">
-          </div>
-          <div class="modal-field">
-            <label class="config-label">Password</label>
-            <input type="password" class="config-input" id="demo-prod-ssh-pass" placeholder="admin">
+
+        <!-- PRODUCTION (collapsible) -->
+        <div class="section-toggle" id="section-prod-toggle" data-section="prod">
+          <span class="section-toggle-icon">⊕</span> PRODUCTION
+          <span class="section-toggle-remove hidden">×</span>
+        </div>
+        <div class="section-fields hidden" id="section-prod-fields">
+          <label class="config-label">CloudVision URL</label>
+          <input type="text" class="config-input" id="demo-prod-cv-url" placeholder="https://your-cv-prod-instance.example.com">
+          <label class="config-label">API Key</label>
+          <input type="password" class="config-input" id="demo-prod-cv-token" placeholder="Service account token (optional)">
+
+          <div class="modal-section-title" style="font-size:10px">SSH Credentials</div>
+          <div class="modal-row">
+            <div class="modal-field">
+              <label class="config-label">Username</label>
+              <input type="text" class="config-input" id="demo-prod-ssh-user" placeholder="admin">
+            </div>
+            <div class="modal-field">
+              <label class="config-label">Password</label>
+              <input type="password" class="config-input" id="demo-prod-ssh-pass" placeholder="admin">
+            </div>
           </div>
         </div>
       </div>

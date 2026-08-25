@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   let editingId = null;
+  const sectionState = { github: false, dev: false, prod: false };
 
   function getDemos() {
     try { return JSON.parse(localStorage.getItem('demos')) || []; }
@@ -45,19 +46,34 @@ document.addEventListener('DOMContentLoaded', () => {
     return d.innerHTML;
   }
 
+  function toggleSection(section, enabled) {
+    sectionState[section] = enabled;
+    const fields = document.getElementById(`section-${section}-fields`);
+    const toggleEl = document.getElementById(`section-${section}-toggle`);
+    const icon = toggleEl.querySelector('.section-toggle-icon');
+    const remove = toggleEl.querySelector('.section-toggle-remove');
+
+    fields.classList.toggle('hidden', !enabled);
+    icon.textContent = enabled ? '⊖' : '⊕';
+    remove.classList.toggle('hidden', !enabled);
+    toggleEl.classList.toggle('section-active', enabled);
+  }
+
   function renderGrid() {
     const demos = getDemos();
     let html = '';
 
     for (const demo of demos) {
+      const badges = [];
+      if (demo.github_enabled) badges.push('GitHub');
+      if (demo.dev_enabled) badges.push('Dev CV');
+      if (demo.prod_enabled) badges.push('Prod CV');
+      const badgeHtml = badges.map(b => `<span class="demo-tile-badge">${b}</span>`).join('');
+
       html += `
         <div class="demo-tile">
           <div class="demo-tile-name">${esc(demo.name)}</div>
-          <div class="demo-tile-info">
-            ${demo.github_url ? '<span class="demo-tile-badge">GitHub</span>' : ''}
-            ${demo.dev_cv_url ? '<span class="demo-tile-badge">Dev CV</span>' : ''}
-            ${demo.prod_cv_url ? '<span class="demo-tile-badge">Prod CV</span>' : ''}
-          </div>
+          <div class="demo-tile-info">${badgeHtml}</div>
           <div class="demo-tile-actions">
             <button class="btn btn-open" onclick="launchDemo('${demo.id}')">Launch</button>
             <button class="btn" onclick="editDemo('${demo.id}')">Edit</button>
@@ -92,13 +108,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('demo-prod-ssh-pass').value = demo?.prod_ssh_password || '';
 
     const actCheckbox = document.getElementById('demo-dev-act-enabled');
-    const actFields = document.getElementById('demo-dev-act-fields');
     actCheckbox.checked = !!demo?.dev_act_enabled;
-    actFields.classList.toggle('hidden', !actCheckbox.checked);
+    document.getElementById('demo-dev-act-fields').classList.toggle('hidden', !actCheckbox.checked);
     document.getElementById('demo-dev-act-url').value = demo?.dev_act_url || '';
     document.getElementById('demo-dev-act-user').value = demo?.dev_act_user || '';
     document.getElementById('demo-dev-act-token').value = demo?.dev_act_token || '';
     document.getElementById('demo-dev-act-lab').value = demo?.dev_act_lab || '';
+
+    toggleSection('github', !!demo?.github_enabled);
+    toggleSection('dev', !!demo?.dev_enabled);
+    toggleSection('prod', !!demo?.prod_enabled);
 
     overlay.classList.remove('hidden');
   }
@@ -118,21 +137,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const demo = {
       id: editingId || generateId(),
       name,
+      github_enabled: sectionState.github,
       github_url: document.getElementById('demo-github-url').value.trim(),
       github_token: document.getElementById('demo-github-token').value.trim(),
+      dev_enabled: sectionState.dev,
       dev_cv_url: document.getElementById('demo-dev-cv-url').value.trim(),
       dev_cv_token: document.getElementById('demo-dev-cv-token').value.trim(),
-      prod_cv_url: document.getElementById('demo-prod-cv-url').value.trim(),
-      prod_cv_token: document.getElementById('demo-prod-cv-token').value.trim(),
       dev_ssh_username: document.getElementById('demo-dev-ssh-user').value.trim(),
       dev_ssh_password: document.getElementById('demo-dev-ssh-pass').value.trim(),
-      prod_ssh_username: document.getElementById('demo-prod-ssh-user').value.trim(),
-      prod_ssh_password: document.getElementById('demo-prod-ssh-pass').value.trim(),
       dev_act_enabled: document.getElementById('demo-dev-act-enabled').checked,
       dev_act_url: document.getElementById('demo-dev-act-url').value.trim(),
       dev_act_user: document.getElementById('demo-dev-act-user').value.trim(),
       dev_act_token: document.getElementById('demo-dev-act-token').value.trim(),
       dev_act_lab: document.getElementById('demo-dev-act-lab').value.trim(),
+      prod_enabled: sectionState.prod,
+      prod_cv_url: document.getElementById('demo-prod-cv-url').value.trim(),
+      prod_cv_token: document.getElementById('demo-prod-cv-token').value.trim(),
+      prod_ssh_username: document.getElementById('demo-prod-ssh-user').value.trim(),
+      prod_ssh_password: document.getElementById('demo-prod-ssh-pass').value.trim(),
     };
 
     const demos = getDemos();
@@ -167,6 +189,16 @@ document.addEventListener('DOMContentLoaded', () => {
   window.launchDemo = (id) => {
     window.location.href = `demo.html?id=${id}`;
   };
+
+  document.querySelectorAll('.section-toggle').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (e.target.classList.contains('section-toggle-remove')) {
+        toggleSection(el.dataset.section, false);
+      } else if (!sectionState[el.dataset.section]) {
+        toggleSection(el.dataset.section, true);
+      }
+    });
+  });
 
   document.getElementById('demo-dev-act-enabled').addEventListener('change', (e) => {
     document.getElementById('demo-dev-act-fields').classList.toggle('hidden', !e.target.checked);

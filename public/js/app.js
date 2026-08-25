@@ -21,7 +21,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     applyTheme(document.body.classList.contains('light-theme') ? 'dark' : 'light');
   });
 
-  // Load demo config from URL param
   let demoConfig = null;
   const params = new URLSearchParams(window.location.search);
   const demoId = params.get('id');
@@ -44,11 +43,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  // Pre-fill localStorage from demo config BEFORE creating panels
+  const githubEnabled = demoConfig ? !!demoConfig.github_enabled : true;
+  const enabledEnvs = {};
+  for (const envKey of Object.keys(config.environments)) {
+    enabledEnvs[envKey] = demoConfig ? !!demoConfig[`${envKey}_enabled`] : true;
+  }
+
   if (demoConfig) {
-    localStorage.setItem('github_url', demoConfig.github_url || '');
-    localStorage.setItem('github_token', demoConfig.github_token || '');
+    if (githubEnabled) {
+      localStorage.setItem('github_url', demoConfig.github_url || '');
+      localStorage.setItem('github_token', demoConfig.github_token || '');
+    }
     for (const envKey of Object.keys(config.environments)) {
+      if (!enabledEnvs[envKey]) continue;
       localStorage.setItem(`cv_url_${envKey}`, demoConfig[`${envKey}_cv_url`] || '');
       localStorage.setItem(`cv_token_${envKey}`, demoConfig[`${envKey}_cv_token`] || '');
       localStorage.setItem(`act_enabled_${envKey}`, demoConfig[`${envKey}_act_enabled`] ? 'true' : 'false');
@@ -61,78 +68,80 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // GitHub Actions sidebar (shared across environments)
-  const sidebar = document.createElement('div');
-  sidebar.className = 'github-sidebar';
+  let ghPanel = null, ghConnectBtn = null, ghDisconnectBtn = null;
 
-  const ghPane = document.createElement('div');
-  ghPane.className = 'pane';
-  ghPane.id = 'pane-github';
+  if (githubEnabled) {
+    const sidebar = document.createElement('div');
+    sidebar.className = 'github-sidebar';
 
-  const ghHeader = document.createElement('div');
-  ghHeader.className = 'pane-header';
+    const ghPane = document.createElement('div');
+    ghPane.className = 'pane';
+    ghPane.id = 'pane-github';
 
-  const ghTitleArea = document.createElement('div');
-  const ghTitleRow = document.createElement('div');
-  ghTitleRow.className = 'pane-title';
-  const ghDot = document.createElement('span');
-  ghDot.className = 'status-dot';
-  ghDot.id = 'status-github';
-  ghTitleRow.appendChild(ghDot);
-  const ghTitle = document.createElement('span');
-  ghTitle.textContent = 'GitHub Actions';
-  ghTitleRow.appendChild(ghTitle);
-  ghTitleArea.appendChild(ghTitleRow);
-  const ghStep = document.createElement('div');
-  ghStep.className = 'pane-step';
-  ghStep.textContent = 'CI Pipeline';
-  ghTitleArea.appendChild(ghStep);
-  ghHeader.appendChild(ghTitleArea);
+    const ghHeader = document.createElement('div');
+    ghHeader.className = 'pane-header';
 
-  const ghActions = document.createElement('div');
-  ghActions.className = 'pane-actions';
-  const ghConnectBtn = document.createElement('button');
-  ghConnectBtn.className = 'btn btn-connect';
-  ghConnectBtn.textContent = 'Connect';
-  const ghDisconnectBtn = document.createElement('button');
-  ghDisconnectBtn.className = 'btn btn-disconnect';
-  ghDisconnectBtn.textContent = 'Disconnect';
-  ghDisconnectBtn.style.display = 'none';
-  ghActions.appendChild(ghConnectBtn);
-  ghActions.appendChild(ghDisconnectBtn);
-  ghHeader.appendChild(ghActions);
+    const ghTitleArea = document.createElement('div');
+    const ghTitleRow = document.createElement('div');
+    ghTitleRow.className = 'pane-title';
+    const ghDot = document.createElement('span');
+    ghDot.className = 'status-dot';
+    ghDot.id = 'status-github';
+    ghTitleRow.appendChild(ghDot);
+    const ghTitle = document.createElement('span');
+    ghTitle.textContent = 'GitHub Actions';
+    ghTitleRow.appendChild(ghTitle);
+    ghTitleArea.appendChild(ghTitleRow);
+    const ghStep = document.createElement('div');
+    ghStep.className = 'pane-step';
+    ghStep.textContent = 'CI Pipeline';
+    ghTitleArea.appendChild(ghStep);
+    ghHeader.appendChild(ghTitleArea);
 
-  const ghContent = document.createElement('div');
-  ghContent.className = 'pane-content';
-
-  const ghPanel = new GitHubPanel(ghContent);
-  ghPanel.onStatusChange = (status) => {
-    const dot = document.getElementById('status-github');
-    const paneEl = document.getElementById('pane-github');
-    dot.className = 'status-dot';
-    paneEl.className = 'pane';
-    if (status === 'connected') { dot.classList.add('connected'); paneEl.classList.add('connected'); }
-    else if (status === 'active') { dot.classList.add('active'); }
-    else if (status === 'error') { dot.classList.add('error'); paneEl.classList.add('error'); }
-  };
-
-  ghConnectBtn.addEventListener('click', () => {
-    ghPanel.connect();
-    ghConnectBtn.style.display = 'none';
-    ghDisconnectBtn.style.display = '';
-  });
-  ghDisconnectBtn.addEventListener('click', () => {
-    ghPanel.disconnect();
-    ghConnectBtn.style.display = '';
+    const ghActions = document.createElement('div');
+    ghActions.className = 'pane-actions';
+    ghConnectBtn = document.createElement('button');
+    ghConnectBtn.className = 'btn btn-connect';
+    ghConnectBtn.textContent = 'Connect';
+    ghDisconnectBtn = document.createElement('button');
+    ghDisconnectBtn.className = 'btn btn-disconnect';
+    ghDisconnectBtn.textContent = 'Disconnect';
     ghDisconnectBtn.style.display = 'none';
-  });
+    ghActions.appendChild(ghConnectBtn);
+    ghActions.appendChild(ghDisconnectBtn);
+    ghHeader.appendChild(ghActions);
 
-  ghPane.appendChild(ghHeader);
-  ghPane.appendChild(ghContent);
-  sidebar.appendChild(ghPane);
-  dashboard.appendChild(sidebar);
+    const ghContent = document.createElement('div');
+    ghContent.className = 'pane-content';
 
-  // Environment rows area
+    ghPanel = new GitHubPanel(ghContent);
+    ghPanel.onStatusChange = (status) => {
+      const dot = document.getElementById('status-github');
+      const paneEl = document.getElementById('pane-github');
+      dot.className = 'status-dot';
+      paneEl.className = 'pane';
+      if (status === 'connected') { dot.classList.add('connected'); paneEl.classList.add('connected'); }
+      else if (status === 'active') { dot.classList.add('active'); }
+      else if (status === 'error') { dot.classList.add('error'); paneEl.classList.add('error'); }
+    };
+
+    ghConnectBtn.addEventListener('click', () => {
+      ghPanel.connect();
+      ghConnectBtn.style.display = 'none';
+      ghDisconnectBtn.style.display = '';
+    });
+    ghDisconnectBtn.addEventListener('click', () => {
+      ghPanel.disconnect();
+      ghConnectBtn.style.display = '';
+      ghDisconnectBtn.style.display = 'none';
+    });
+
+    ghPane.appendChild(ghHeader);
+    ghPane.appendChild(ghContent);
+    sidebar.appendChild(ghPane);
+    dashboard.appendChild(sidebar);
+  }
+
   const envArea = document.createElement('div');
   envArea.className = 'env-area';
 
@@ -145,6 +154,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const cvPanels = {};
 
   for (const [envKey, env] of Object.entries(config.environments)) {
+    if (!enabledEnvs[envKey]) continue;
+
     const row = document.createElement('div');
     row.className = 'env-row';
 
@@ -168,24 +179,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       header.className = 'pane-header';
 
       const titleArea = document.createElement('div');
-
       const titleRow = document.createElement('div');
       titleRow.className = 'pane-title';
-
       const statusDot = document.createElement('span');
       statusDot.className = 'status-dot';
       statusDot.id = `status-${envKey}-${step.key}`;
       titleRow.appendChild(statusDot);
-
       const titleText = document.createElement('span');
       titleRow.appendChild(titleText);
       titleArea.appendChild(titleRow);
-
       const stepLabel = document.createElement('div');
       stepLabel.className = 'pane-step';
       stepLabel.textContent = step.step;
       titleArea.appendChild(stepLabel);
-
       header.appendChild(titleArea);
 
       const actions = document.createElement('div');
@@ -208,13 +214,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         titleText.textContent = 'CloudVision';
         const panel = new CloudVisionPanel(content, envKey);
         panel.onStatusChange = updatePaneStatus;
-        panel.onConnect = () => {
-          termManagers.forEach(tm => tm.refreshDevices());
-        };
-        panel.onDisconnect = () => {
-          termManagers.forEach(tm => tm.resetDevices());
-        };
-
+        panel.onConnect = () => { termManagers.forEach(tm => tm.refreshDevices()); };
+        panel.onDisconnect = () => { termManagers.forEach(tm => tm.resetDevices()); };
         cvPanels[envKey] = panel;
 
         const connectBtn = document.createElement('button');
@@ -254,10 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const termMgr = new TerminalManager(content, envKey);
         termManagers.push(termMgr);
 
-        termMgr.onDeviceChange = (hostname) => {
-          titleText.textContent = hostname;
-        };
-
+        termMgr.onDeviceChange = (hostname) => { titleText.textContent = hostname; };
         termMgr.onStatusChange = (status) => {
           updatePaneStatus(status);
           if (status === 'connected') {
@@ -285,16 +283,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     envArea.appendChild(row);
   }
 
-  dashboard.appendChild(envArea);
+  if (envArea.children.length > 0) {
+    dashboard.appendChild(envArea);
+  }
 
   // Auto-connect if launched from a demo config
   if (demoConfig) {
     setTimeout(() => {
-      ghPanel.connect();
-      ghConnectBtn.style.display = 'none';
-      ghDisconnectBtn.style.display = '';
+      if (ghPanel && githubEnabled) {
+        ghPanel.connect();
+        ghConnectBtn.style.display = 'none';
+        ghDisconnectBtn.style.display = '';
+      }
 
       for (const envKey of Object.keys(config.environments)) {
+        if (!enabledEnvs[envKey]) continue;
         const panel = cvPanels[envKey];
         if (panel) {
           panel.connect();
@@ -309,7 +312,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ACT Lab Status indicator
   const actEnabled = localStorage.getItem('act_enabled_dev');
-  if (actEnabled === 'true') {
+  if (actEnabled === 'true' && enabledEnvs.dev) {
     const actStatusEl = document.getElementById('act-status');
     const actDivider = document.getElementById('act-divider');
     const actDot = document.getElementById('act-status-dot');
