@@ -229,9 +229,13 @@ class CloudVisionPanel {
     }
   }
 
+  ccFailed(cc) {
+    return cc.error || cc.completionReason === 'FAILED' || cc.completionReason === 'STOPPED';
+  }
+
   ccStatusClass(cc) {
     switch (cc.status) {
-      case 'COMPLETED': return 'status-success';
+      case 'COMPLETED': return this.ccFailed(cc) ? 'status-failure' : 'status-success';
       case 'RUNNING': return 'status-running';
       case 'NOT_STARTED': return cc.approvalStatus === 'PENDING' ? 'status-warning' : 'status-neutral';
       case 'SCHEDULED': return 'status-neutral';
@@ -241,7 +245,7 @@ class CloudVisionPanel {
 
   ccStatusIcon(cc) {
     switch (cc.status) {
-      case 'COMPLETED': return '✓';
+      case 'COMPLETED': return this.ccFailed(cc) ? '✗' : '✓';
       case 'RUNNING': return '●';
       case 'NOT_STARTED': return '○';
       case 'SCHEDULED': return '◷';
@@ -251,7 +255,7 @@ class CloudVisionPanel {
 
   ccStatusLabel(cc) {
     switch (cc.status) {
-      case 'COMPLETED': return 'Completed';
+      case 'COMPLETED': return this.ccFailed(cc) ? 'Failed' : 'Completed';
       case 'RUNNING': return 'Running';
       case 'NOT_STARTED': return 'Not Started';
       case 'SCHEDULED': return 'Scheduled';
@@ -269,7 +273,7 @@ class CloudVisionPanel {
 
   stageStatusClass(stage) {
     switch (stage.status) {
-      case 'COMPLETED': return 'status-success';
+      case 'COMPLETED': return stage.error ? 'status-failure' : 'status-success';
       case 'RUNNING': return 'status-running';
       case 'NOT_STARTED': return 'status-neutral';
       default: return 'status-neutral';

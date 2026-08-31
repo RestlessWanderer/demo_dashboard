@@ -205,10 +205,17 @@ app.post('/api/cloudvision/changecontrols', async (req, res) => {
         };
       });
 
+      let completionReason = '';
+      if (val.completion_reason) {
+        completionReason = val.completion_reason.replace('COMPLETION_REASON_', '');
+      }
+
       return {
         id: key.id || val.id || '',
         name: change.name || val.name || key.id || '',
         status,
+        error: val.error || '',
+        completionReason,
         approvalStatus: val.approve?.value ? 'APPROVED' : 'PENDING',
         createdBy: change.user || val.createdBy || '',
         createdAt: obj.result?.time || val.createdAt || '',

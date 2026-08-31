@@ -557,7 +557,7 @@ html, body {
 }
 
 .api-item-name {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
@@ -574,12 +574,12 @@ html, body {
 }
 
 .api-item-time {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
 .api-item-commit {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-secondary);
   margin-top: 2px;
   white-space: nowrap;
@@ -621,7 +621,7 @@ html, body {
 }
 
 .job-icon {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -632,7 +632,7 @@ html, body {
 .job-icon.status-neutral { color: var(--text-muted); }
 
 .job-name {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
 }
@@ -651,7 +651,7 @@ html, body {
 }
 
 .step-icon {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -662,15 +662,15 @@ html, body {
 .step-icon.status-neutral { color: var(--text-muted); }
 
 .step-name {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 
 /* Badges */
 .branch-badge {
   display: inline-block;
-  padding: 1px 6px;
-  font-size: 10px;
+  padding: 2px 8px;
+  font-size: 12px;
   font-weight: 600;
   border-radius: 3px;
   background: rgba(10, 138, 199, 0.15);
@@ -684,8 +684,8 @@ html, body {
 .cc-status-badge,
 .cc-approval-badge {
   display: inline-block;
-  padding: 1px 6px;
-  font-size: 10px;
+  padding: 2px 8px;
+  font-size: 12px;
   font-weight: 600;
   border-radius: 3px;
 }
