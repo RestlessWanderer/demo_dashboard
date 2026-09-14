@@ -21,6 +21,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     applyTheme(document.body.classList.contains('light-theme') ? 'dark' : 'light');
   });
 
+  const ticketBtn = document.getElementById('create-ticket-btn');
+  if (ticketBtn) {
+    ticketBtn.addEventListener('click', () => {
+      window.open('ticket.html', 'create_ticket', 'width=420,height=520,resizable=yes,scrollbars=yes');
+    });
+  }
+
   let demoConfig = null;
   const params = new URLSearchParams(window.location.search);
   const demoId = params.get('id');

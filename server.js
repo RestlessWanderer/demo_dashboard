@@ -33,6 +33,43 @@ function parseGitHubUrl(url) {
   return null;
 }
 
+function parseSubnet(cidr) {
+  const match = cidr.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)\/(\d+)$/);
+  if (!match) return null;
+  const octets = [+match[1], +match[2], +match[3], +match[4]];
+  if (octets.some(o => o > 255)) return null;
+  const prefix = +match[5];
+  if (prefix > 32) return null;
+  return { octets, prefix };
+}
+
+function buildSviEntry(vlanId, vlanName, subnet, existingNodes) {
+  const parsed = parseSubnet(subnet);
+  if (!parsed) throw new Error(`Invalid subnet: ${subnet}`);
+  const { octets, prefix } = parsed;
+  const base = `${octets[0]}.${octets[1]}.${octets[2]}`;
+
+  const nodes = existingNodes.map((n, i) => ({
+    node: n.node,
+    ip_address: `${base}.${i + 2}/${prefix}`,
+  }));
+
+  return {
+    id: Number(vlanId),
+    name: vlanName,
+    enabled: true,
+    ip_virtual_router_addresses: [`${base}.1`],
+    nodes,
+  };
+}
+
+function findNetworkServicesFile(entries) {
+  const match = entries.find(
+    e => e.type === 'blob' && /group_vars\/.*_network_services\.yml$/.test(e.path)
+  );
+  return match ? match.path : null;
+}
+
 function generateMockGitHubRuns() {
   const now = Date.now();
   return [
@@ -117,6 +154,122 @@ app.post('/api/github/jobs', async (req, res) => {
       })),
     }));
     res.json({ jobs, mock: false });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.post('/api/github/create-change', async (req, res) => {
+  const { url, token, vlan_id, vlan_name, subnet } = req.body || {};
+  if (!token) return res.status(400).json({ error: 'GitHub token required' });
+  if (!url) return res.status(400).json({ error: 'URL required' });
+  if (!vlan_id || !vlan_name || !subnet) return res.status(400).json({ error: 'vlan_id, vlan_name, and subnet are required' });
+
+  if (!parseSubnet(subnet)) return res.status(400).json({ error: `Invalid subnet format: ${subnet}` });
+
+  const repo = parseGitHubUrl(url);
+  if (!repo) return res.status(400).json({ error: 'Cannot parse GitHub URL' });
+
+  const ghHeaders = {
+    Authorization: `Bearer ${token}`,
+    Accept: 'application/vnd.github+json',
+    'Content-Type': 'application/json',
+  };
+  const api = `https://api.github.com/repos/${repo.owner}/${repo.repo}`;
+
+  try {
+    // 1. Get default branch
+    const repoRes = await fetch(api, { headers: ghHeaders });
+    if (!repoRes.ok) throw new Error(`GitHub API ${repoRes.status}: could not fetch repo info`);
+    const repoData = await repoRes.json();
+    const defaultBranch = repoData.default_branch;
+
+    // 2. Get HEAD SHA of default branch
+    const refRes = await fetch(`${api}/git/ref/heads/${defaultBranch}`, { headers: ghHeaders });
+    if (!refRes.ok) throw new Error(`Could not get ref for ${defaultBranch}`);
+    const refData = await refRes.json();
+    const baseSha = refData.object.sha;
+
+    // 3. Create branch
+    const branchName = `ticket/add-vlan-${vlan_id}`;
+    const branchRes = await fetch(`${api}/git/refs`, {
+      method: 'POST',
+      headers: ghHeaders,
+      body: JSON.stringify({ ref: `refs/heads/${branchName}`, sha: baseSha }),
+    });
+    if (branchRes.status === 422) {
+      return res.status(409).json({ error: `Branch ${branchName} already exists. A ticket for this VLAN may already be in progress.` });
+    }
+    if (!branchRes.ok) throw new Error(`Could not create branch: ${branchRes.status}`);
+
+    // 4. Find network services file via repo tree
+    const treeRes = await fetch(`${api}/git/trees/${baseSha}?recursive=1`, { headers: ghHeaders });
+    if (!treeRes.ok) throw new Error(`Could not fetch repo tree`);
+    const treeData = await treeRes.json();
+    const filePath = findNetworkServicesFile(treeData.tree || []);
+    if (!filePath) {
+      return res.status(404).json({ error: 'Could not find a *_network_services.yml file under group_vars/ in the repository' });
+    }
+
+    // 5. Read current file content
+    const fileRes = await fetch(`${api}/contents/${filePath}?ref=${branchName}`, { headers: ghHeaders });
+    if (!fileRes.ok) throw new Error(`Could not read ${filePath}`);
+    const fileData = await fileRes.json();
+    const fileContent = Buffer.from(fileData.content, 'base64').toString('utf8');
+    const fileSha = fileData.sha;
+
+    // 6. Parse YAML, append new SVI
+    const doc = yaml.load(fileContent);
+    if (!doc?.tenants?.[0]?.vrfs?.[0]?.svis) {
+      return res.status(400).json({ error: 'Unexpected YAML structure: could not find tenants[0].vrfs[0].svis' });
+    }
+    const svis = doc.tenants[0].vrfs[0].svis;
+
+    if (svis.some(s => s.id === Number(vlan_id))) {
+      return res.status(409).json({ error: `VLAN ID ${vlan_id} already exists in ${filePath}` });
+    }
+
+    const existingNodes = (svis.find(s => s.nodes?.length)?.nodes || [])
+      .map(n => ({ node: n.node }));
+    if (existingNodes.length === 0) {
+      existingNodes.push({ node: 'spine-1' }, { node: 'spine-2' });
+    }
+
+    svis.push(buildSviEntry(vlan_id, vlan_name, subnet, existingNodes));
+
+    const updatedYaml = yaml.dump(doc, { indent: 2, lineWidth: -1, quotingType: "'", forceQuotes: false });
+
+    // 7. Commit the change
+    const commitRes = await fetch(`${api}/contents/${filePath}`, {
+      method: 'PUT',
+      headers: ghHeaders,
+      body: JSON.stringify({
+        message: `Add VLAN ${vlan_id} (${vlan_name})`,
+        content: Buffer.from(updatedYaml).toString('base64'),
+        sha: fileSha,
+        branch: branchName,
+      }),
+    });
+    if (!commitRes.ok) throw new Error(`Could not commit changes: ${commitRes.status}`);
+
+    // 8. Create PR
+    const prRes = await fetch(`${api}/pulls`, {
+      method: 'POST',
+      headers: ghHeaders,
+      body: JSON.stringify({
+        title: `Add VLAN ${vlan_id} - ${vlan_name}`,
+        body: `Adds SVI for VLAN ${vlan_id} (${vlan_name}) with subnet ${subnet}`,
+        head: branchName,
+        base: defaultBranch,
+      }),
+    });
+    if (!prRes.ok) {
+      const errBody = await prRes.text();
+      throw new Error(`Could not create PR: ${prRes.status} ${errBody}`);
+    }
+    const prData = await prRes.json();
+
+    res.json({ success: true, pr_url: prData.html_url });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

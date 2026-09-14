@@ -1134,3 +1134,72 @@ html, body {
 .act-fields.hidden {
   display: none;
 }
+
+/* Ticket Popup */
+.ticket-container {
+  padding: 24px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.ticket-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.ticket-type-label {
+  display: inline-block;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  border-radius: 4px;
+  background: rgba(8, 111, 161, 0.12);
+  color: var(--arista-blue-light);
+  margin-bottom: 16px;
+}
+
+.ticket-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ticket-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.ticket-actions .btn {
+  padding: 8px 20px;
+  font-size: 13px;
+}
+
+.ticket-status {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.ticket-status.success {
+  background: rgba(0, 184, 148, 0.12);
+  color: var(--success);
+}
+
+.ticket-status.error {
+  background: rgba(231, 76, 60, 0.12);
+  color: var(--error);
+}
+
+.ticket-status.hidden {
+  display: none;
+}
